@@ -1,12 +1,13 @@
 import { useState, type ReactNode } from "react";
-import type { Action, Role } from "../../shared/protocol";
+import { GAME_MODES, type Action, type GameMode, type Role } from "../../shared/protocol";
 import type { Navigate } from "../App";
 import { ConnectionBanner } from "../components/ConnectionBanner";
 import { ParticipantList } from "../components/ParticipantList";
 import { PhaseBar } from "../components/PhaseBar";
 import { RpsPanel } from "../components/RpsPanel";
+import { TextPanel } from "../components/TextPanel";
 import { loadIdentity, saveName, type Identity } from "../identity";
-import { errorLabel } from "../labels";
+import { MODE_LABEL, errorLabel } from "../labels";
 import { useServerNow, useSession } from "../useSession";
 
 interface Props {
@@ -87,6 +88,7 @@ function RoomInner({ sessionId, role, navigate, identity }: Props & { identity: 
   const run = async (action: Action) => {
     const ack = await session.act(action);
     setError(ack.ok ? null : errorLabel(ack.error ?? "action_failed"));
+    return ack.ok;
   };
 
   return (
@@ -117,7 +119,22 @@ function RoomInner({ sessionId, role, navigate, identity }: Props & { identity: 
                 >
                   {me.role === "player" ? "改為觀察者" : "改為玩家"}
                 </button>
-                {isHost && (
+                {isHost ? (
+                  <select
+                    value={view.mode}
+                    disabled={!connected}
+                    onChange={(e) => run({ type: "set_mode", mode: e.target.value as GameMode })}
+                  >
+                    {GAME_MODES.map((m) => (
+                      <option key={m} value={m}>
+                        模式：{MODE_LABEL[m]}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span>模式：{MODE_LABEL[view.mode]}</span>
+                )}
+                {isHost && view.mode === "rps" && (
                   <>
                     <select value={rounds} onChange={(e) => setRounds(Number(e.target.value))}>
                       {[1, 3, 5].map((n) => (
@@ -155,6 +172,13 @@ function RoomInner({ sessionId, role, navigate, identity }: Props & { identity: 
               </button>
             </section>
           )}
+
+          <TextPanel
+            messages={view.messages}
+            meId={identity.userId}
+            disabled={!connected || !me || me.left}
+            onPost={(text) => run({ type: "text.post", text })}
+          />
         </>
       )}
     </main>

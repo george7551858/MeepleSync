@@ -4,16 +4,20 @@ import {
   CloseCode,
   PING,
   PONG,
+  isGameMode,
   normalizeName,
+  normalizeText,
   type Action,
   type ClientMessage,
   type EventBody,
+  type GameMode,
   type ParticipantChanges,
   type ParticipantView,
   type ServerMessage,
   type SessionView,
+  type TextMessage,
 } from "../shared/protocol";
-import { sortParticipants } from "../shared/view";
+import { pushMessage, sortParticipants } from "../shared/view";
 import {
   ACTION_CACHE_MS,
   DISCONNECT_GRACE_MS,
@@ -36,7 +40,8 @@ import {
 } from "./store";
 
 const GAMES: Record<string, GameModule<any>> = { [rps.kind]: rps };
-const PLATFORM_ACTIONS = new Set(["start", "restart", "set_role"]);
+const PLATFORM_ACTIONS = new Set(["start", "restart", "set_role", "set_mode", "text.post"]);
+const HOST_ACTIONS = new Set(["start", "restart", "set_mode"]);
 
 interface Attachment {
   userId: string | null;
@@ -73,7 +78,7 @@ export class SessionDO extends DurableObject<Env> {
 
   // ---------------------------------------------------------------- RPC
 
-  init(sessionId: string): boolean {
+  init(sessionId: string, mode: GameMode): boolean {
     if (this.state) return false;
     const now = Date.now();
     this.store.migrate();
@@ -81,11 +86,13 @@ export class SessionDO extends DurableObject<Env> {
       sessionId,
       createdAt: now,
       status: "lobby",
+      mode,
       hostId: null,
       seq: 0,
       phase: { id: 1, name: "lobby", startedAt: now, deadline: null, requirement: null },
       participants: {},
       game: null,
+      messages: [],
       lastActivity: now,
     };
     this.store.saveState(this.state);
@@ -258,9 +265,11 @@ export class SessionDO extends DurableObject<Env> {
     const s = this.state!;
     const p = s.participants[userId];
     if (!p || p.left) return fail("not_participant");
+    // Text is not tied to any phase, so it must not fail with stale_phase when a phase changes mid-send.
+    if (action.type === "text.post") return this.postText(tx, p, action.text);
 
     if (!PLATFORM_ACTIONS.has(action.type) && p.role !== "player") return fail("observer_cannot_act");
-    if ((action.type === "start" || action.type === "restart") && s.hostId !== userId) return fail("host_only");
+    if (HOST_ACTIONS.has(action.type) && s.hostId !== userId) return fail("host_only");
     if (phaseId !== s.phase.id) return fail("stale_phase");
     if (s.phase.deadline !== null && tx.now > s.phase.deadline) return fail("phase_expired");
 
@@ -274,9 +283,18 @@ export class SessionDO extends DurableObject<Env> {
         this.emit(tx, { type: "participant_updated", data: { userId, changes: { role: action.role } } });
         break;
       }
+      case "set_mode": {
+        if (s.status !== "lobby") return fail("not_allowed_now");
+        if (!isGameMode(action.mode)) return fail("invalid_mode");
+        if (action.mode === s.mode) return { ok: true };
+        s.mode = action.mode;
+        this.emit(tx, { type: "mode_changed", data: { mode: action.mode } });
+        break;
+      }
       case "start": {
         if (s.status !== "lobby") return fail("not_allowed_now");
-        const game = rps;
+        const game = GAMES[s.mode];
+        if (!game) return fail("no_game");
         const players = this.activePlayers();
         if (players.length < game.minPlayers) return fail("not_enough_players");
         const rounds = typeof action.rounds === "number" ? action.rounds : undefined;
@@ -313,6 +331,17 @@ export class SessionDO extends DurableObject<Env> {
         this.checkRequirement(tx);
       }
     }
+    this.commit(tx);
+    return { ok: true };
+  }
+
+  private postText(tx: Tx, p: Participant, raw: unknown): ActionResult {
+    const text = normalizeText(raw);
+    if (!text) return fail("invalid_text");
+    const s = this.state!;
+    const message: TextMessage = { id: s.seq + 1, userId: p.userId, name: p.name, text, ts: tx.now };
+    pushMessage(s.messages, message);
+    this.emit(tx, { type: "text_posted", data: { message } });
     this.commit(tx);
     return { ok: true };
   }
@@ -494,10 +523,12 @@ export class SessionDO extends DurableObject<Env> {
       sessionId: s.sessionId,
       seq: s.seq,
       status: s.status,
+      mode: s.mode,
       hostId: s.hostId,
       participants: sortParticipants(Object.values(s.participants).map((p) => this.participantView(p))),
       phase: structuredClone(s.phase),
       game: s.game ? GAMES[s.game.kind].project(s.game.state, viewerId) : null,
+      messages: structuredClone(s.messages),
     };
   }
 

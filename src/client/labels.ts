@@ -1,6 +1,9 @@
 import type { Hand } from "../shared/games/rps";
+import type { GameMode } from "../shared/protocol";
 
 export const HAND_LABEL: Record<Hand, string> = { rock: "石頭", paper: "布", scissors: "剪刀" };
+
+export const MODE_LABEL: Record<GameMode, string> = { text: "任意文字", rps: "猜拳" };
 
 export const PHASE_LABEL: Record<string, string> = {
   lobby: "等待開始",
@@ -22,6 +25,8 @@ const ERROR_LABEL: Record<string, string> = {
   not_allowed_now: "現在不能這麼做",
   session_full: "房間人數已滿",
   identity_mismatch: "身份驗證失敗",
+  invalid_text: "文字不能是空的，也不能超過 200 字",
+  no_game: "任意文字模式沒有遊戲可以開始",
 };
 
 export function errorLabel(code: string): string {

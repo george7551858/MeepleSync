@@ -1,12 +1,15 @@
 import { useState } from "react";
+import { GAME_MODES, type GameMode } from "../../shared/protocol";
 import type { Navigate } from "../App";
 import { loadIdentity, saveName } from "../identity";
+import { MODE_LABEL } from "../labels";
 
 const ID_IN_TEXT = /([23456789abcdefghjkmnpqrstuvwxyz]{8})/;
 
 export function Home({ navigate }: { navigate: Navigate }) {
   const [name, setName] = useState(() => loadIdentity().name);
   const [code, setCode] = useState("");
+  const [mode, setMode] = useState<GameMode>("text");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,7 +24,7 @@ export function Home({ navigate }: { navigate: Navigate }) {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/sessions", { method: "POST" });
+      const res = await fetch("/api/sessions", { method: "POST", body: JSON.stringify({ mode }) });
       if (!res.ok) throw new Error(String(res.status));
       const { sessionId } = (await res.json()) as { sessionId: string };
       navigate(`/s/${sessionId}`);
@@ -49,9 +52,18 @@ export function Home({ navigate }: { navigate: Navigate }) {
       </div>
 
       <h2>建立房間</h2>
-      <button className="primary" disabled={busy} onClick={create}>
-        建立新房間
-      </button>
+      <div className="row">
+        <select value={mode} onChange={(e) => setMode(e.target.value as GameMode)}>
+          {GAME_MODES.map((m) => (
+            <option key={m} value={m}>
+              {MODE_LABEL[m]}
+            </option>
+          ))}
+        </select>
+        <button className="primary" disabled={busy} onClick={create}>
+          建立新房間
+        </button>
+      </div>
 
       <h2>加入房間</h2>
       <div className="row">

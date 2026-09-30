@@ -1,13 +1,14 @@
 import { runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
+import { exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { verifyCommitment } from "../src/shared/games/rps";
-import { CloseCode } from "../src/shared/protocol";
+import { CloseCode, MESSAGE_HISTORY, TEXT_MAX_LENGTH, type GameMode } from "../src/shared/protocol";
 import type { SessionDO } from "../src/worker/session";
 import type { SessionState } from "../src/worker/store";
 import { TestClient, createSession, makeIdentity, sessionStub } from "./helpers";
 
-async function lobbyWithTwo() {
-  const sessionId = await createSession();
+async function lobbyWithTwo(mode: GameMode = "rps") {
+  const sessionId = await createSession(mode);
   const alice = await TestClient.connect(sessionId, makeIdentity("Alice"));
   await alice.ready();
   const bob = await TestClient.connect(sessionId, makeIdentity("Bob"));
@@ -243,5 +244,74 @@ describe("disconnect and recovery", () => {
     const late = await TestClient.connect(sessionId, makeIdentity("Late"));
     await late.waitFor(() => late.closeCode);
     expect(late.closeCode).toBe(CloseCode.NotFound);
+  });
+});
+
+describe("game mode", () => {
+  it("defaults to text mode when created without a mode", async () => {
+    const res = await exports.default.fetch("http://test/api/sessions", { method: "POST" });
+    const { sessionId } = (await res.json()) as { sessionId: string };
+    const alice = await TestClient.connect(sessionId, makeIdentity("Alice"));
+    expect((await alice.ready()).mode).toBe("text");
+  });
+
+  it("has no game to start in text mode", async () => {
+    const { alice } = await lobbyWithTwo("text");
+    expect(await alice.act({ type: "start" })).toMatchObject({ ok: false, error: "no_game" });
+  });
+
+  it("lets only the host switch mode, and only in the lobby", async () => {
+    const { alice, bob } = await lobbyWithTwo("text");
+    expect(await bob.act({ type: "set_mode", mode: "rps" })).toMatchObject({ ok: false, error: "host_only" });
+    expect(await alice.act({ type: "set_mode", mode: "rps" })).toMatchObject({ ok: true });
+    await bob.waitFor(() => bob.view!.mode === "rps");
+
+    expect(await alice.act({ type: "start" })).toMatchObject({ ok: true });
+    await alice.waitFor(() => alice.view!.phase.name === "choosing");
+    expect(await alice.act({ type: "set_mode", mode: "text" })).toMatchObject({ ok: false, error: "not_allowed_now" });
+  });
+});
+
+describe("text messages", () => {
+  it("delivers text from players and observers to everyone, once per actionId", async () => {
+    const { sessionId, alice, bob } = await lobbyWithTwo("text");
+    const carol = await TestClient.connect(sessionId, makeIdentity("Carol"), "observer");
+    await carol.ready();
+
+    const actionId = crypto.randomUUID();
+    expect(await carol.act({ type: "text.post", text: "  hello  " }, actionId)).toMatchObject({ ok: true });
+    expect(await carol.act({ type: "text.post", text: "  hello  " }, actionId)).toMatchObject({ ok: true });
+    await alice.act({ type: "text.post", text: "hi Carol" });
+
+    await bob.waitFor(() => bob.view!.messages.length === 2);
+    expect(bob.view!.messages.map((m) => [m.name, m.text])).toEqual([
+      ["Carol", "hello"],
+      ["Alice", "hi Carol"],
+    ]);
+    expect(bob.view).toEqual(await bob.syncFresh());
+  });
+
+  it("rejects empty and over-long text", async () => {
+    const { alice } = await lobbyWithTwo("text");
+    expect(await alice.act({ type: "text.post", text: "   " })).toMatchObject({ ok: false, error: "invalid_text" });
+    const tooLong = "a".repeat(TEXT_MAX_LENGTH + 1);
+    expect(await alice.act({ type: "text.post", text: tooLong })).toMatchObject({ ok: false, error: "invalid_text" });
+  });
+
+  it("accepts text during a game even when the phase changed since it was sent", async () => {
+    const { alice, bob } = await lobbyWithTwo("rps");
+    const oldPhase = alice.view!.phase.id;
+    await alice.act({ type: "start" });
+    await bob.waitFor(() => bob.view!.phase.name === "choosing");
+    expect(await bob.act({ type: "text.post", text: "good luck" }, undefined, oldPhase)).toMatchObject({ ok: true });
+  });
+
+  it("keeps only the most recent messages, identically in replayed views and snapshots", async () => {
+    const { alice, bob } = await lobbyWithTwo("text");
+    for (let i = 0; i <= MESSAGE_HISTORY; i++) await alice.act({ type: "text.post", text: `m${i}` });
+    await bob.waitFor(() => bob.view!.messages.at(-1)?.text === `m${MESSAGE_HISTORY}`);
+    expect(bob.view!.messages).toHaveLength(MESSAGE_HISTORY);
+    expect(bob.view!.messages[0].text).toBe("m1");
+    expect(bob.view).toEqual(await bob.syncFresh());
   });
 });

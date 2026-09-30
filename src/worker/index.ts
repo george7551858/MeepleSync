@@ -1,4 +1,4 @@
-import { SESSION_ID_ALPHABET, SESSION_ID_PATTERN } from "../shared/protocol";
+import { SESSION_ID_ALPHABET, SESSION_ID_PATTERN, isGameMode } from "../shared/protocol";
 
 export { SessionDO } from "./session";
 
@@ -20,9 +20,11 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === "/api/sessions" && request.method === "POST") {
+      const body = (await request.json().catch(() => null)) as { mode?: unknown } | null;
+      const mode = isGameMode(body?.mode) ? body.mode : "text";
       for (let attempt = 0; attempt < 5; attempt++) {
         const sessionId = newSessionId();
-        if (await sessionStub(env, sessionId).init(sessionId)) return json({ sessionId }, 201);
+        if (await sessionStub(env, sessionId).init(sessionId, mode)) return json({ sessionId }, 201);
       }
       return json({ error: "could_not_allocate_id" }, 503);
     }

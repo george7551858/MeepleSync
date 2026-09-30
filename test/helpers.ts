@@ -1,9 +1,17 @@
 import { env, exports } from "cloudflare:workers";
-import type { Action, ClientMessage, Role, ServerMessage, SessionEvent, SessionView } from "../src/shared/protocol";
+import type {
+  Action,
+  ClientMessage,
+  GameMode,
+  Role,
+  ServerMessage,
+  SessionEvent,
+  SessionView,
+} from "../src/shared/protocol";
 import { applyEvent } from "../src/shared/view";
 
-export async function createSession(): Promise<string> {
-  const res = await exports.default.fetch("http://test/api/sessions", { method: "POST" });
+export async function createSession(mode: GameMode = "rps"): Promise<string> {
+  const res = await exports.default.fetch("http://test/api/sessions", { method: "POST", body: JSON.stringify({ mode }) });
   const body = (await res.json()) as { sessionId: string };
   return body.sessionId;
 }

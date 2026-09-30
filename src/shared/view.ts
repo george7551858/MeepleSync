@@ -1,5 +1,11 @@
 import { applyRpsEvent } from "./games/rps";
-import type { ParticipantView, SessionEvent, SessionView } from "./protocol";
+import { MESSAGE_HISTORY, type ParticipantView, type SessionEvent, type SessionView, type TextMessage } from "./protocol";
+
+/** Appends in place, keeping only the most recent MESSAGE_HISTORY entries. */
+export function pushMessage(messages: TextMessage[], message: TextMessage): void {
+  messages.push(message);
+  if (messages.length > MESSAGE_HISTORY) messages.splice(0, messages.length - MESSAGE_HISTORY);
+}
 
 export function sortParticipants(list: ParticipantView[]): ParticipantView[] {
   return list.sort((a, b) => a.joinedAt - b.joinedAt || a.userId.localeCompare(b.userId));
@@ -27,6 +33,12 @@ export function applyEvent(view: SessionView, event: SessionEvent): SessionView 
       break;
     case "status_changed":
       v.status = event.data.status;
+      break;
+    case "mode_changed":
+      v.mode = event.data.mode;
+      break;
+    case "text_posted":
+      pushMessage(v.messages, event.data.message);
       break;
     case "phase_changed":
       v.phase = event.data.phase;

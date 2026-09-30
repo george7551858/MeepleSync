@@ -101,6 +101,18 @@ ul.plain li {
   text-decoration: line-through;
 }
 
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+ul.messages {
+  max-height: 240px;
+  overflow-y: auto;
+  margin-bottom: 8px;
+  word-break: break-word;
+}
+
 .hash {
   color: #777;
   font-size: 0.85em;

@@ -1,4 +1,12 @@
-import type { EventBody, PhaseView, SessionEvent, SessionStatus, ParticipantView } from "../shared/protocol";
+import type {
+  EventBody,
+  GameMode,
+  PhaseView,
+  SessionEvent,
+  SessionStatus,
+  ParticipantView,
+  TextMessage,
+} from "../shared/protocol";
 
 export interface Participant extends ParticipantView {
   secretHash: string;
@@ -9,11 +17,13 @@ export interface SessionState {
   sessionId: string;
   createdAt: number;
   status: SessionStatus;
+  mode: GameMode;
   hostId: string | null;
   seq: number;
   phase: PhaseView;
   participants: Record<string, Participant>;
   game: { kind: string; state: unknown } | null;
+  messages: TextMessage[];
   lastActivity: number;
 }
 
