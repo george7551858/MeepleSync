@@ -1,0 +1,117 @@
+:root {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Noto Sans Mono CJK TC", monospace;
+  font-size: 15px;
+  line-height: 1.6;
+  color: #111;
+  background: #fafafa;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 24px 16px 64px;
+}
+
+h1 {
+  font-size: 1.3rem;
+  margin: 0 0 16px;
+}
+
+h2 {
+  font-size: 1rem;
+  margin: 24px 0 8px;
+  border-bottom: 1px solid #ddd;
+}
+
+section {
+  margin-bottom: 16px;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  padding: 4px 10px;
+  border: 1px solid #111;
+  background: #fff;
+  color: #111;
+  border-radius: 0;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+button.primary {
+  background: #111;
+  color: #fff;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.muted {
+  color: #777;
+}
+
+.error {
+  color: #b00020;
+}
+
+.banner {
+  padding: 6px 10px;
+  margin-bottom: 12px;
+  border: 1px dashed #b00020;
+  color: #b00020;
+}
+
+ul.plain {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+ul.plain li {
+  padding: 2px 0;
+}
+
+.dot-on {
+  color: #1a7f37;
+}
+
+.dot-off {
+  color: #bbb;
+}
+
+.gone {
+  color: #999;
+  text-decoration: line-through;
+}
+
+.hash {
+  color: #777;
+  font-size: 0.85em;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+td,
+th {
+  padding: 2px 12px 2px 0;
+  text-align: left;
+}

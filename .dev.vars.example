@@ -1,0 +1,2 @@
+# Copy to .dev.vars to enable GET /api/sessions/:id/log during local development.
+DEBUG=1
