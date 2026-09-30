@@ -10,7 +10,7 @@ import {
   type SessionView,
 } from "../shared/protocol";
 import { applyEvent } from "../shared/view";
-import type { Identity } from "./identity";
+import { randomHex, type Identity } from "./identity";
 
 export type ConnStatus =
   | "connecting"
@@ -98,7 +98,7 @@ export class SessionConnection {
   act(action: Action): Promise<Ack> {
     const view = this.snapshot.view;
     if (!view) return Promise.resolve({ ok: false, error: "not_ready" });
-    const actionId = crypto.randomUUID();
+    const actionId = randomHex(16);
     const msg: ClientMessage = { t: "action", actionId, phaseId: view.phase.id, action };
     return new Promise((resolve) => {
       this.pending.set(actionId, { msg, resolve });

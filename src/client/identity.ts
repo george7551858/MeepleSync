@@ -8,7 +8,7 @@ export interface Identity {
 
 const KEY = "meeplesync.identity";
 
-function randomHex(bytes: number): string {
+export function randomHex(bytes: number): string {
   return [...crypto.getRandomValues(new Uint8Array(bytes))].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
@@ -19,7 +19,7 @@ export function loadIdentity(): Identity {
   } catch {
     // Corrupted storage: fall through and mint a new identity.
   }
-  const identity = { userId: crypto.randomUUID(), secret: randomHex(32), name: "" };
+  const identity = { userId: randomHex(16), secret: randomHex(32), name: "" };
   localStorage.setItem(KEY, JSON.stringify(identity));
   return identity;
 }
