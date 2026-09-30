@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { HANDS, HAND_TEXT } from "../../shared/games/rps";
 import { GAME_MODES, type Action, type GameMode, type Role } from "../../shared/protocol";
 import type { Navigate } from "../App";
 import { ConnectionBanner } from "../components/ConnectionBanner";
@@ -7,7 +8,7 @@ import { PhaseBar } from "../components/PhaseBar";
 import { RpsPanel } from "../components/RpsPanel";
 import { TextPanel } from "../components/TextPanel";
 import { loadIdentity, saveName, type Identity } from "../identity";
-import { MODE_LABEL, errorLabel } from "../labels";
+import { HAND_EMOJI, MODE_LABEL, errorLabel } from "../labels";
 import { useServerNow, useSession } from "../useSession";
 
 interface Props {
@@ -83,6 +84,12 @@ function RoomInner({ sessionId, role, navigate, identity }: Props & { identity: 
   const me = view?.participants.find((p) => p.userId === identity.userId);
   const isHost = !!view && view.hostId === identity.userId;
   const connected = session.status === "open";
+  const req = view?.phase.requirement;
+  const mustChoose =
+    view?.game?.kind === "rps" &&
+    req?.actionType === "text.post" &&
+    req.actors.includes(identity.userId) &&
+    !req.done.includes(identity.userId);
   const shareUrl = `${window.location.origin}/s/${sessionId}`;
 
   const run = async (action: Action) => {
@@ -156,14 +163,7 @@ function RoomInner({ sessionId, role, navigate, identity }: Props & { identity: 
             </section>
           )}
 
-          {view.game?.kind === "rps" && (
-            <RpsPanel
-              view={view}
-              game={view.game}
-              meId={identity.userId}
-              onChoose={(choice) => connected && run({ type: "rps.choose", choice })}
-            />
-          )}
+          {view.game?.kind === "rps" && <RpsPanel view={view} game={view.game} />}
 
           {view.status === "finished" && isHost && (
             <section>
@@ -174,9 +174,11 @@ function RoomInner({ sessionId, role, navigate, identity }: Props & { identity: 
           )}
 
           <TextPanel
+            sessionId={sessionId}
             messages={view.messages}
             meId={identity.userId}
             disabled={!connected || !me || me.left}
+            options={mustChoose ? HANDS.map((h) => ({ text: HAND_TEXT[h], label: HAND_EMOJI[h] })) : null}
             onPost={(text) => run({ type: "text.post", text })}
           />
         </>

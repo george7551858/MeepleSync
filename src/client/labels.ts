@@ -1,7 +1,7 @@
 import type { Hand } from "../shared/games/rps";
 import type { GameMode } from "../shared/protocol";
 
-export const HAND_LABEL: Record<Hand, string> = { rock: "石頭", paper: "布", scissors: "剪刀" };
+export const HAND_EMOJI: Record<Hand, string> = { rock: "✊", paper: "✋", scissors: "✌️" };
 
 export const MODE_LABEL: Record<GameMode, string> = { text: "任意文字", rps: "猜拳" };
 
@@ -27,6 +27,7 @@ const ERROR_LABEL: Record<string, string> = {
   identity_mismatch: "身份驗證失敗",
   invalid_text: "文字不能是空的，也不能超過 200 字",
   no_game: "任意文字模式沒有遊戲可以開始",
+  invalid_choice: "出拳中只能輸入 剪刀、石頭 或 布",
 };
 
 export function errorLabel(code: string): string {

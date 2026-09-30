@@ -1,8 +1,9 @@
 import { createHash, randomBytes } from "node:crypto";
 import {
+  HAND_TEXT,
   commitmentInput,
-  isHand,
   judge,
+  parseHand,
   type Hand,
   type RpsRoundResult,
   type RpsView,
@@ -16,10 +17,10 @@ export interface RpsState {
   players: string[];
   scores: Record<string, number>;
   picks: Record<string, { choice: Hand; nonce: string; commitment: string }>;
-  history: RpsRoundResult[];
 }
 
-export const CHOOSE_ACTION = "rps.choose";
+/** Choosing is typing one of the HAND_TEXT words into the room's text input. */
+export const CHOOSE_ACTION = "text.post";
 
 function startRound(ctx: GameContext, s: RpsState): void {
   s.round += 1;
@@ -45,8 +46,14 @@ function reveal(ctx: GameContext, s: RpsState): void {
     winners,
     draw,
   };
-  s.history.push(result);
-  ctx.emit({ type: "rps_revealed", data: { result, scores: { ...s.scores } } });
+  ctx.emit({ type: "rps_revealed", data: { scores: { ...s.scores } } });
+  ctx.post({
+    kind: "rps_result",
+    result,
+    names: Object.fromEntries(s.players.map((id) => [id, ctx.nameOf(id)])),
+    scores: { ...s.scores },
+    final: s.round >= s.totalRounds,
+  });
   ctx.setPhase("revealed", { durationMs: REVEAL_MS });
 }
 
@@ -62,7 +69,6 @@ export const rps: GameModule<RpsState> = {
       players,
       scores: Object.fromEntries(players.map((p) => [p, 0])),
       picks: {},
-      history: [],
     };
   },
 
@@ -72,14 +78,15 @@ export const rps: GameModule<RpsState> = {
 
   onAction(ctx, s, userId, action) {
     if (action.type !== CHOOSE_ACTION) return "unknown_action";
-    if (!isHand(action.choice)) return "invalid_choice";
+    const choice = parseHand(action.text);
+    if (!choice) return "invalid_choice";
     if (s.picks[userId]) return "already_committed";
     const nonce = randomBytes(16).toString("hex");
     const commitment = createHash("sha256")
-      .update(commitmentInput(ctx.sessionId, s.round, userId, action.choice, nonce))
+      .update(commitmentInput(ctx.sessionId, s.round, userId, choice, nonce))
       .digest("hex");
-    s.picks[userId] = { choice: action.choice, nonce, commitment };
-    ctx.emit({ type: "rps_committed", data: { userId, commitment } }, { to: [userId], data: { choice: action.choice } });
+    s.picks[userId] = { choice, nonce, commitment };
+    ctx.post({ kind: "commit", userId, name: ctx.nameOf(userId), commitment, text: HAND_TEXT[choice] });
     return null;
   },
 
@@ -91,16 +98,13 @@ export const rps: GameModule<RpsState> = {
     }
   },
 
-  project(s, viewerId): RpsView {
+  project(s): RpsView {
     return {
       kind: "rps",
       totalRounds: s.totalRounds,
       round: s.round,
       players: [...s.players],
       scores: { ...s.scores },
-      commitments: Object.fromEntries(Object.entries(s.picks).map(([id, p]) => [id, p.commitment])),
-      myChoice: (viewerId && s.picks[viewerId]?.choice) || null,
-      history: structuredClone(s.history),
     };
   },
 };

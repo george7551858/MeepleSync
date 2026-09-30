@@ -1,4 +1,4 @@
-import type { Action, EventBody, GameView, Requirement } from "../../shared/protocol";
+import type { Action, EventBody, GameView, MessageBody, Requirement } from "../../shared/protocol";
 import type { EventSecret } from "../store";
 
 export interface PhaseOptions {
@@ -11,6 +11,9 @@ export interface GameContext {
   readonly now: number;
   readonly sessionId: string;
   emit(body: EventBody, secret?: EventSecret): void;
+  /** Append to the room's text history. */
+  post(message: MessageBody): void;
+  nameOf(userId: string): string;
   setPhase(name: string, options?: PhaseOptions): void;
   /** Players still holding a seat (role player, not left). */
   activePlayers(): string[];

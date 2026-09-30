@@ -106,11 +106,52 @@ ul.plain li {
   min-width: 0;
 }
 
+ul.indent {
+  padding-left: 2ch;
+}
+
+.quick {
+  margin-top: 8px;
+}
+
+button.emoji {
+  font-size: 1.6rem;
+  line-height: 1;
+  padding: 6px 14px;
+}
+
 ul.messages {
-  max-height: 240px;
+  max-height: 320px;
   overflow-y: auto;
   margin-bottom: 8px;
+  padding: 4px 10px;
+  border: 1px solid #ddd;
+  background: #fff;
   word-break: break-word;
+}
+
+ul.messages > li {
+  display: grid;
+  grid-template-columns: 6ch 1fr;
+  gap: 1ch;
+  padding: 6px 0;
+  border-bottom: 1px dotted #e5e5e5;
+}
+
+ul.messages > li:last-child {
+  border-bottom: none;
+}
+
+.time {
+  color: #999;
+  font-size: 0.85em;
+  padding-top: 0.1em;
+}
+
+.rps-block {
+  padding: 6px 10px;
+  background: #fff6db;
+  border-left: 3px solid #e0a800;
 }
 
 .hash {

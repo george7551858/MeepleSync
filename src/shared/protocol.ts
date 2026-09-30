@@ -1,4 +1,4 @@
-import type { Hand, RpsEventBody, RpsView } from "./games/rps";
+import type { RpsEventBody, RpsRoundResult, RpsView } from "./games/rps";
 
 export type Role = "player" | "observer";
 export type SessionStatus = "lobby" | "playing" | "finished";
@@ -6,14 +6,20 @@ export type SessionStatus = "lobby" | "playing" | "finished";
 export type GameMode = "text" | "rps";
 export const GAME_MODES: readonly GameMode[] = ["text", "rps"];
 
-export interface TextMessage {
-  /** Equals the seq of the `text_posted` event that created it. */
-  id: number;
-  userId: string;
-  name: string;
-  text: string;
-  ts: number;
-}
+export type MessageBody =
+  | { kind: "text"; userId: string; name: string; text: string }
+  /** A submission hidden until reveal; `text` is present only for its author. */
+  | { kind: "commit"; userId: string; name: string; commitment: string; text?: string }
+  | {
+      kind: "rps_result";
+      result: RpsRoundResult;
+      names: Record<string, string>;
+      scores: Record<string, number>;
+      final: boolean;
+    };
+
+/** `id` equals the seq of the `text_posted` event that created it. */
+export type TextMessage = { id: number; ts: number } & MessageBody;
 
 export interface ParticipantView {
   userId: string;
@@ -77,8 +83,7 @@ export type Action =
   | { type: "restart" }
   | { type: "set_role"; role: Role }
   | { type: "set_mode"; mode: GameMode }
-  | { type: "text.post"; text: string }
-  | { type: "rps.choose"; choice: Hand };
+  | { type: "text.post"; text: string };
 
 export type ClientMessage =
   | { t: "hello"; userId: string; secret: string; name: string; role: Role; lastSeq: number | null }

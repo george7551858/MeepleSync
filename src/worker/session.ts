@@ -11,6 +11,7 @@ import {
   type ClientMessage,
   type EventBody,
   type GameMode,
+  type MessageBody,
   type ParticipantChanges,
   type ParticipantView,
   type ServerMessage,
@@ -32,6 +33,7 @@ import type { GameContext, GameModule, PhaseOptions } from "./games/types";
 import {
   Store,
   projectEvent,
+  projectMessage,
   type ActionResult,
   type EventSecret,
   type Participant,
@@ -265,8 +267,11 @@ export class SessionDO extends DurableObject<Env> {
     const s = this.state!;
     const p = s.participants[userId];
     if (!p || p.left) return fail("not_participant");
-    // Text is not tied to any phase, so it must not fail with stale_phase when a phase changes mid-send.
-    if (action.type === "text.post") return this.postText(tx, p, action.text);
+    // Text from anyone the current phase is not waiting on is free text and skips the phase checks,
+    // so it never fails with stale_phase. Text from a pending actor is their move and goes to the game.
+    if (action.type === "text.post" && !this.isPendingActor(userId, action.type)) {
+      return this.postText(tx, p, action.text);
+    }
 
     if (!PLATFORM_ACTIONS.has(action.type) && p.role !== "player") return fail("observer_cannot_act");
     if (HOST_ACTIONS.has(action.type) && s.hostId !== userId) return fail("host_only");
@@ -335,15 +340,32 @@ export class SessionDO extends DurableObject<Env> {
     return { ok: true };
   }
 
+  private isPendingActor(userId: string, actionType: string): boolean {
+    const s = this.state!;
+    const req = s.phase.requirement;
+    return (
+      s.status === "playing" &&
+      !!req &&
+      req.actionType === actionType &&
+      req.actors.includes(userId) &&
+      !req.done.includes(userId)
+    );
+  }
+
   private postText(tx: Tx, p: Participant, raw: unknown): ActionResult {
     const text = normalizeText(raw);
     if (!text) return fail("invalid_text");
-    const s = this.state!;
-    const message: TextMessage = { id: s.seq + 1, userId: p.userId, name: p.name, text, ts: tx.now };
-    pushMessage(s.messages, message);
-    this.emit(tx, { type: "text_posted", data: { message } });
+    this.postMessage(tx, { kind: "text", userId: p.userId, name: p.name, text });
     this.commit(tx);
     return { ok: true };
+  }
+
+  private postMessage(tx: Tx, body: MessageBody): void {
+    const s = this.state!;
+    const message: TextMessage = { id: s.seq + 1, ts: tx.now, ...body };
+    pushMessage(s.messages, message);
+    const secret = message.kind === "commit" ? { to: [message.userId], data: { message } } : undefined;
+    this.emit(tx, { type: "text_posted", data: { message: projectMessage(message, null) } }, secret);
   }
 
   private onLeave(ws: WebSocket, userId: string): void {
@@ -479,6 +501,8 @@ export class SessionDO extends DurableObject<Env> {
       now: tx.now,
       sessionId: this.state!.sessionId,
       emit: (body, secret) => this.emit(tx, body, secret),
+      post: (message) => this.postMessage(tx, message),
+      nameOf: (userId) => this.state!.participants[userId]?.name ?? "",
       setPhase: (name, options) => this.setPhase(tx, name, options),
       activePlayers: () => this.activePlayers(),
       finish: () => this.finishGame(tx),
@@ -528,7 +552,7 @@ export class SessionDO extends DurableObject<Env> {
       participants: sortParticipants(Object.values(s.participants).map((p) => this.participantView(p))),
       phase: structuredClone(s.phase),
       game: s.game ? GAMES[s.game.kind].project(s.game.state, viewerId) : null,
-      messages: structuredClone(s.messages),
+      messages: s.messages.map((m) => structuredClone(projectMessage(m, viewerId))),
     };
   }
 

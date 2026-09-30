@@ -48,6 +48,12 @@ export interface ActionResult {
   error?: string;
 }
 
+export function projectMessage(m: TextMessage, viewerId: string | null): TextMessage {
+  if (m.kind !== "commit" || m.userId === viewerId) return m;
+  const { text: _, ...hidden } = m;
+  return hidden;
+}
+
 export function projectEvent(event: RawEvent, viewerId: string | null): SessionEvent {
   const reveal = event.secret && viewerId !== null && event.secret.to.includes(viewerId);
   const data = reveal ? { ...event.data, ...event.secret!.data } : event.data;

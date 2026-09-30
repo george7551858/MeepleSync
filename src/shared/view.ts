@@ -50,7 +50,6 @@ export function applyEvent(view: SessionView, event: SessionEvent): SessionView 
       v.game = event.data.game;
       break;
     case "rps_round_started":
-    case "rps_committed":
     case "rps_revealed":
       if (v.game?.kind === "rps") applyRpsEvent(v.game, event);
       break;

@@ -1,11 +1,29 @@
 import { runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import { verifyCommitment } from "../src/shared/games/rps";
-import { CloseCode, MESSAGE_HISTORY, TEXT_MAX_LENGTH, type GameMode } from "../src/shared/protocol";
+import { HAND_TEXT, verifyCommitment, type Hand } from "../src/shared/games/rps";
+import { CloseCode, MESSAGE_HISTORY, TEXT_MAX_LENGTH, type GameMode, type TextMessage } from "../src/shared/protocol";
 import type { SessionDO } from "../src/worker/session";
 import type { SessionState } from "../src/worker/store";
 import { TestClient, createSession, makeIdentity, sessionStub } from "./helpers";
+
+type Msg<K extends TextMessage["kind"]> = Extract<TextMessage, { kind: K }>;
+
+function choose(client: TestClient, hand: Hand, phaseId?: number) {
+  return client.act({ type: "text.post", text: HAND_TEXT[hand] }, undefined, phaseId);
+}
+
+function latestResult(client: TestClient) {
+  return client.view!.messages.filter((m): m is Msg<"rps_result"> => m.kind === "rps_result").at(-1);
+}
+
+function commitOf(client: TestClient, userId: string) {
+  return client.view!.messages.filter((m): m is Msg<"commit"> => m.kind === "commit" && m.userId === userId).at(-1);
+}
+
+function texts(client: TestClient) {
+  return client.view!.messages.filter((m): m is Msg<"text"> => m.kind === "text");
+}
 
 async function lobbyWithTwo(mode: GameMode = "rps") {
   const sessionId = await createSession(mode);
@@ -88,8 +106,7 @@ describe("action validation", () => {
     const oldPhase = alice.view!.phase.id;
     expect(await alice.act({ type: "start" })).toMatchObject({ ok: true });
     await alice.waitFor(() => alice.view!.phase.name === "choosing");
-    const ack = await alice.act({ type: "rps.choose", choice: "rock" }, undefined, oldPhase);
-    expect(ack).toMatchObject({ ok: false, error: "stale_phase" });
+    expect(await choose(alice, "rock", oldPhase)).toMatchObject({ ok: false, error: "stale_phase" });
   });
 
   it("only lets the host start", async () => {
@@ -97,43 +114,67 @@ describe("action validation", () => {
     expect(await bob.act({ type: "start" })).toMatchObject({ ok: false, error: "host_only" });
   });
 
-  it("does not let observers act and hides private choices from them", async () => {
+  it("hides a submitted choice from other players and observers", async () => {
     const { sessionId, alice, bob } = await lobbyWithTwo();
     const carol = await TestClient.connect(sessionId, makeIdentity("Carol"), "observer");
     await carol.ready();
     await alice.act({ type: "start" });
-    await carol.waitFor(() => carol.view!.phase.name === "choosing");
-
-    expect(await carol.act({ type: "rps.choose", choice: "rock" })).toMatchObject({ ok: false, error: "observer_cannot_act" });
-
     await alice.waitFor(() => alice.view!.phase.name === "choosing");
-    expect(await alice.act({ type: "rps.choose", choice: "paper" })).toMatchObject({ ok: true });
-    await carol.waitFor(() => carol.view!.game!.commitments[alice.identity.userId]);
-    await bob.waitFor(() => bob.view!.game!.commitments[alice.identity.userId]);
 
-    expect(alice.view!.game!.myChoice).toBe("paper");
-    expect(bob.view!.game!.myChoice).toBeNull();
-    expect(JSON.stringify(carol.received)).not.toContain("paper");
-    expect(JSON.stringify(bob.received)).not.toContain("paper");
+    expect(await choose(alice, "paper")).toMatchObject({ ok: true });
+    await carol.waitFor(() => commitOf(carol, alice.identity.userId));
+    await bob.waitFor(() => commitOf(bob, alice.identity.userId));
+
+    expect(commitOf(alice, alice.identity.userId)!.text).toBe(HAND_TEXT.paper);
+    expect(commitOf(bob, alice.identity.userId)!.text).toBeUndefined();
+    for (const other of [bob, carol]) {
+      expect(JSON.stringify(other.received)).not.toContain("paper");
+      expect(JSON.stringify(other.received)).not.toContain(HAND_TEXT.paper);
+      expect(other.view).toEqual(await other.syncFresh());
+    }
+    expect(alice.view).toEqual(await alice.syncFresh());
     expect(bob.view!.phase.requirement!.done).toEqual([alice.identity.userId]);
+  });
 
-    expect(await alice.act({ type: "rps.choose", choice: "rock" })).toMatchObject({ ok: false, error: "already_done" });
+  it("only accepts the three hands from a player who still has to choose", async () => {
+    const { sessionId, alice, bob } = await lobbyWithTwo();
+    const carol = await TestClient.connect(sessionId, makeIdentity("Carol"), "observer");
+    await carol.ready();
+    await alice.act({ type: "start" });
+    await alice.waitFor(() => alice.view!.phase.name === "choosing");
+
+    expect(await alice.act({ type: "text.post", text: "hello" })).toMatchObject({ ok: false, error: "invalid_choice" });
+    expect(await carol.act({ type: "text.post", text: "go Alice" })).toMatchObject({ ok: true });
+    await choose(alice, "rock");
+    expect(await alice.act({ type: "text.post", text: HAND_TEXT.paper })).toMatchObject({ ok: true });
+
+    await bob.waitFor(() => texts(bob).length === 2);
+    expect(texts(bob).map((m) => [m.name, m.text])).toEqual([
+      ["Carol", "go Alice"],
+      ["Alice", HAND_TEXT.paper],
+    ]);
+    expect(bob.view!.phase.requirement!.done).toEqual([alice.identity.userId]);
   });
 });
 
 describe("rock paper scissors", () => {
-  it("reveals when everyone committed, and commitments verify", async () => {
+  it("reveals into the text history when everyone committed, and commitments verify", async () => {
     const { sessionId, alice, bob } = await lobbyWithTwo();
     await alice.act({ type: "start", rounds: 1 });
     await bob.waitFor(() => bob.view!.phase.name === "choosing");
-    await alice.act({ type: "rps.choose", choice: "rock" });
-    await bob.act({ type: "rps.choose", choice: "scissors" });
+    await choose(alice, "rock");
+    await choose(bob, "scissors");
 
     await bob.waitFor(() => bob.view!.phase.name === "revealed");
-    const result = bob.view!.game!.history[0];
+    const message = latestResult(bob)!;
+    const { result } = message;
     expect(result.winners).toEqual([alice.identity.userId]);
+    expect(message.final).toBe(true);
+    expect(message.names).toEqual({ [alice.identity.userId]: "Alice", [bob.identity.userId]: "Bob" });
+    expect(message.scores[alice.identity.userId]).toBe(1);
     expect(bob.view!.game!.scores[alice.identity.userId]).toBe(1);
     for (const [userId, pick] of Object.entries(result.picks)) {
+      expect(result.commitments[userId]).toBe(commitOf(bob, userId)!.commitment);
       expect(await verifyCommitment(sessionId, 1, userId, pick!, result.commitments[userId])).toBe(true);
     }
 
@@ -146,11 +187,11 @@ describe("rock paper scissors", () => {
     const { sessionId, alice, bob } = await lobbyWithTwo();
     await alice.act({ type: "start" });
     await alice.waitFor(() => alice.view!.phase.name === "choosing");
-    await alice.act({ type: "rps.choose", choice: "rock" });
+    await choose(alice, "rock");
 
     await expireAndRunAlarm(sessionId, (s) => (s.phase.deadline = Date.now() - 1));
     await bob.waitFor(() => bob.view!.phase.name === "revealed");
-    const result = bob.view!.game!.history[0];
+    const { result } = latestResult(bob)!;
     expect(result.picks[bob.identity.userId]).toBeNull();
     expect(result.winners).toEqual([alice.identity.userId]);
 
@@ -162,8 +203,8 @@ describe("rock paper scissors", () => {
     const { sessionId, alice, bob } = await lobbyWithTwo();
     await alice.act({ type: "start", rounds: 1 });
     await alice.waitFor(() => alice.view!.phase.name === "choosing");
-    await alice.act({ type: "rps.choose", choice: "rock" });
-    await bob.act({ type: "rps.choose", choice: "rock" });
+    await choose(alice, "rock");
+    await choose(bob, "rock");
     await expireAndRunAlarm(sessionId, (s) => (s.phase.deadline = Date.now() - 1));
     await alice.waitFor(() => alice.view!.status === "finished");
 
@@ -183,7 +224,7 @@ describe("disconnect and recovery", () => {
 
     await alice.act({ type: "start" });
     await alice.waitFor(() => alice.view!.phase.name === "choosing");
-    await alice.act({ type: "rps.choose", choice: "paper" });
+    await choose(alice, "paper");
 
     const bob2 = await TestClient.connect(sessionId, bob.identity, "player", lastSeq);
     await bob2.waitFor(() => bob2.messages.find((m) => m.t === "sync"));
@@ -203,8 +244,8 @@ describe("disconnect and recovery", () => {
     const { alice, bob } = await lobbyWithTwo();
     await alice.act({ type: "start", rounds: 1 });
     await bob.waitFor(() => bob.view!.phase.name === "choosing");
-    await bob.act({ type: "rps.choose", choice: "paper" });
-    await alice.act({ type: "rps.choose", choice: "rock" });
+    await choose(bob, "paper");
+    await choose(alice, "rock");
     await bob.waitFor(() => bob.view!.phase.name === "revealed");
     expect(bob.view).toEqual(await bob.syncFresh());
     expect(alice.view).toEqual(await alice.syncFresh());
@@ -224,7 +265,7 @@ describe("disconnect and recovery", () => {
     const { sessionId, alice, bob } = await lobbyWithTwo();
     await alice.act({ type: "start" });
     await alice.waitFor(() => alice.view!.phase.name === "choosing");
-    await alice.act({ type: "rps.choose", choice: "rock" });
+    await choose(alice, "rock");
     bob.close();
     await alice.waitFor(() => alice.view!.participants[1].connected === false);
     await expireAndRunAlarm(sessionId, (s) => {
@@ -284,7 +325,7 @@ describe("text messages", () => {
     await alice.act({ type: "text.post", text: "hi Carol" });
 
     await bob.waitFor(() => bob.view!.messages.length === 2);
-    expect(bob.view!.messages.map((m) => [m.name, m.text])).toEqual([
+    expect(texts(bob).map((m) => [m.name, m.text])).toEqual([
       ["Carol", "hello"],
       ["Alice", "hi Carol"],
     ]);
@@ -298,20 +339,25 @@ describe("text messages", () => {
     expect(await alice.act({ type: "text.post", text: tooLong })).toMatchObject({ ok: false, error: "invalid_text" });
   });
 
-  it("accepts text during a game even when the phase changed since it was sent", async () => {
+  it("accepts free text with a stale phase, but not a pending player's move", async () => {
     const { alice, bob } = await lobbyWithTwo("rps");
     const oldPhase = alice.view!.phase.id;
     await alice.act({ type: "start" });
     await bob.waitFor(() => bob.view!.phase.name === "choosing");
+    expect(await bob.act({ type: "text.post", text: "good luck" }, undefined, oldPhase)).toMatchObject({
+      ok: false,
+      error: "stale_phase",
+    });
+    await choose(bob, "rock");
     expect(await bob.act({ type: "text.post", text: "good luck" }, undefined, oldPhase)).toMatchObject({ ok: true });
   });
 
   it("keeps only the most recent messages, identically in replayed views and snapshots", async () => {
     const { alice, bob } = await lobbyWithTwo("text");
     for (let i = 0; i <= MESSAGE_HISTORY; i++) await alice.act({ type: "text.post", text: `m${i}` });
-    await bob.waitFor(() => bob.view!.messages.at(-1)?.text === `m${MESSAGE_HISTORY}`);
+    await bob.waitFor(() => texts(bob).at(-1)?.text === `m${MESSAGE_HISTORY}`);
     expect(bob.view!.messages).toHaveLength(MESSAGE_HISTORY);
-    expect(bob.view!.messages[0].text).toBe("m1");
+    expect(texts(bob)[0].text).toBe("m1");
     expect(bob.view).toEqual(await bob.syncFresh());
   });
 });

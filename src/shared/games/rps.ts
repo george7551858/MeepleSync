@@ -7,6 +7,14 @@ export const BEATS: Record<Hand, Hand> = {
   scissors: "paper",
 };
 
+/** The only texts a player may submit while choosing. */
+export const HAND_TEXT: Record<Hand, string> = { rock: "石頭", paper: "布", scissors: "剪刀" };
+
+export function parseHand(text: unknown): Hand | null {
+  if (typeof text !== "string") return null;
+  return HANDS.find((h) => HAND_TEXT[h] === text.trim()) ?? null;
+}
+
 export interface RpsPick {
   choice: Hand;
   nonce: string;
@@ -27,21 +35,11 @@ export interface RpsView {
   round: number;
   players: string[];
   scores: Record<string, number>;
-  /** Public commitment hashes of the current round. */
-  commitments: Record<string, string>;
-  /** The viewer's own choice in the current round (private). */
-  myChoice: Hand | null;
-  history: RpsRoundResult[];
 }
 
 export type RpsEventBody =
   | { type: "rps_round_started"; data: { round: number } }
-  | { type: "rps_committed"; data: { userId: string; commitment: string; choice?: Hand } }
-  | { type: "rps_revealed"; data: { result: RpsRoundResult; scores: Record<string, number> } };
-
-export function isHand(value: unknown): value is Hand {
-  return typeof value === "string" && (HANDS as readonly string[]).includes(value);
-}
+  | { type: "rps_revealed"; data: { scores: Record<string, number> } };
 
 /**
  * Players who did not choose lose the round. Among those who chose:
@@ -93,15 +91,8 @@ export function applyRpsEvent(game: RpsView, event: RpsEventBody): void {
   switch (event.type) {
     case "rps_round_started":
       game.round = event.data.round;
-      game.commitments = {};
-      game.myChoice = null;
-      break;
-    case "rps_committed":
-      game.commitments[event.data.userId] = event.data.commitment;
-      if (event.data.choice) game.myChoice = event.data.choice;
       break;
     case "rps_revealed":
-      game.history.push(event.data.result);
       game.scores = event.data.scores;
       break;
   }
