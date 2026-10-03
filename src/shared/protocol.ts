@@ -79,7 +79,7 @@ export type EventBody =
 export type SessionEvent = EventBody & { seq: number; ts: number };
 
 export type Action =
-  | { type: "start"; rounds?: number }
+  | { type: "start" }
   | { type: "restart" }
   | { type: "set_role"; role: Role }
   | { type: "set_mode"; mode: GameMode }

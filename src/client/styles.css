@@ -10,6 +10,10 @@ body {
   margin: 0;
 }
 
+html, body, #root {
+  height: 100%;
+}
+
 main {
   max-width: 640px;
   margin: 0 auto;
@@ -71,11 +75,291 @@ button.primary {
   color: #b00020;
 }
 
+/* ── Home page ─────────────────────────────── */
+
+.home {
+  text-align: center;
+}
+
+.home h1 {
+  font-size: 1.6rem;
+  margin-bottom: 4px;
+}
+
+.field-label {
+  display: block;
+  font-size: 0.85rem;
+  color: #777;
+  margin: 20px 0 4px;
+}
+
+.name-input {
+  width: 100%;
+  max-width: 280px;
+  box-sizing: border-box;
+  text-align: center;
+}
+
+.home-actions {
+  margin-top: 28px;
+}
+
+button.big {
+  font-size: 1.05rem;
+  padding: 10px 32px;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0;
+  color: #aaa;
+}
+
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  border-bottom: 1px solid #ddd;
+}
+
+.join-row {
+  display: flex;
+  gap: 8px;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+/* ── Room layout (IM-style) ────────────────── */
+
+main.room {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* ── Room header ───────────────────────────── */
+
+.room-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid #ddd;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.room-title {
+  font-size: 0.95rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.header-btn {
+  font-size: 0.8rem;
+  padding: 2px 8px;
+  border: 1px solid #ccc;
+  background: #fff;
+  color: #555;
+}
+.header-btn:hover {
+  background: #f6f6f6;
+}
+
+.danger-text {
+  color: #b00020 !important;
+}
+
+/* ── Collapsible participant drawer ────────── */
+
+.drawer {
+  flex-shrink: 0;
+  border-bottom: 1px solid #eee;
+  background: #fff;
+}
+
+.drawer-toggle {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.drawer-toggle:hover {
+  background: #f6f6f6;
+}
+
+.drawer-arrow {
+  font-size: 0.7rem;
+  color: #999;
+  margin-left: 8px;
+}
+
+.drawer-body {
+  padding: 4px 12px 8px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.drawer-body h2 {
+  font-size: 0.85rem;
+  margin: 8px 0 4px;
+  border: none;
+}
+
+/* ── Chat area ─────────────────────────────── */
+
+.chat-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin-bottom: 0;
+}
+
+ul.messages {
+  flex: 1;
+  overflow-y: auto;
+  margin: 0;
+  padding: 8px 12px;
+  border: none;
+  background: #fafafa;
+  word-break: break-word;
+  /* Remove old max-height; flex handles it */
+}
+
+.messages-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #999;
+}
+
+ul.messages > li {
+  display: grid;
+  grid-template-columns: 6ch 1fr;
+  gap: 1ch;
+  padding: 6px 0;
+  border-bottom: 1px dotted #e5e5e5;
+}
+
+ul.messages > li:last-child {
+  border-bottom: none;
+}
+
+.chat-hint {
+  padding: 4px 12px;
+  margin: 0;
+  font-size: 0.85rem;
+  background: #fff6db;
+  flex-shrink: 0;
+}
+
+.chat-input {
+  display: flex;
+  gap: 0;
+  padding: 8px 12px;
+  background: #fff;
+  border-top: 1px solid #ddd;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.chat-input input {
+  flex: 1;
+  min-width: 0;
+  border-right: none;
+}
+
+.chat-input button {
+  flex-shrink: 0;
+}
+
+.chat-start-hint {
+  padding: 4px 10px;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+/* ── Mode picker ───────────────────────────── */
+
+.mode-anchor {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.mode-btn {
+  padding: 4px 8px;
+  font-size: 0.85rem;
+  border: 1px solid #ccc;
+  background: #f6f6f6;
+  color: #333;
+  cursor: pointer;
+  white-space: nowrap;
+  border-right: none;
+}
+
+.mode-btn:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.mode-dropdown {
+  position: absolute;
+  left: 0;
+  bottom: 100%;
+  z-index: 100;
+  min-width: 120px;
+  background: #fff;
+  border: 1px solid #ddd;
+  box-shadow: 0 -4px 12px rgba(0,0,0,.1);
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 2px;
+}
+
+.mode-dropdown button {
+  border: none;
+  border-radius: 0;
+  text-align: left;
+  padding: 8px 14px;
+  background: transparent;
+  font-size: 0.9rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.mode-dropdown button:hover {
+  background: #f0f0f0;
+}
+
+.mode-dropdown button.active {
+  font-weight: bold;
+}
+
+/* ── Misc shared ───────────────────────────── */
+
 .banner {
   padding: 6px 10px;
-  margin-bottom: 12px;
-  border: 1px dashed #b00020;
+  margin: 0;
+  border: none;
+  border-bottom: 1px dashed #b00020;
   color: #b00020;
+  flex-shrink: 0;
 }
 
 ul.plain {
@@ -86,14 +370,6 @@ ul.plain {
 
 ul.plain li {
   padding: 2px 0;
-}
-
-.dot-on {
-  color: #1a7f37;
-}
-
-.dot-off {
-  color: #bbb;
 }
 
 .gone {
@@ -111,35 +387,16 @@ ul.indent {
 }
 
 .quick {
-  margin-top: 8px;
+  padding: 4px 12px;
+  margin: 0;
+  flex-shrink: 0;
+  justify-content: center;
 }
 
 button.emoji {
-  font-size: 1.6rem;
-  line-height: 1;
+  font-size: 1.05rem;
+  line-height: 1.4;
   padding: 6px 14px;
-}
-
-ul.messages {
-  max-height: 320px;
-  overflow-y: auto;
-  margin-bottom: 8px;
-  padding: 4px 10px;
-  border: 1px solid #ddd;
-  background: #fff;
-  word-break: break-word;
-}
-
-ul.messages > li {
-  display: grid;
-  grid-template-columns: 6ch 1fr;
-  gap: 1ch;
-  padding: 6px 0;
-  border-bottom: 1px dotted #e5e5e5;
-}
-
-ul.messages > li:last-child {
-  border-bottom: none;
 }
 
 .time {
@@ -154,11 +411,6 @@ ul.messages > li:last-child {
   border-left: 3px solid #e0a800;
 }
 
-.hash {
-  color: #777;
-  font-size: 0.85em;
-}
-
 table {
   border-collapse: collapse;
 }
@@ -167,4 +419,30 @@ td,
 th {
   padding: 2px 12px 2px 0;
   text-align: left;
+}
+
+/* ── Meeple avatars ────────────────────────── */
+
+.avatar-preview {
+  margin: 16px 0 4px;
+}
+
+.participant-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.msg-author {
+  white-space: nowrap;
+}
+
+.role-switch-btn {
+  margin-top: 8px;
+  font-size: 0.85rem;
+  padding: 3px 10px;
+  border: 1px solid #ccc;
+  background: #f6f6f6;
+  color: #555;
+  width: 100%;
 }

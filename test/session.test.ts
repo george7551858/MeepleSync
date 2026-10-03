@@ -160,7 +160,7 @@ describe("action validation", () => {
 describe("rock paper scissors", () => {
   it("reveals into the text history when everyone committed, and commitments verify", async () => {
     const { sessionId, alice, bob } = await lobbyWithTwo();
-    await alice.act({ type: "start", rounds: 1 });
+    await alice.act({ type: "start" });
     await bob.waitFor(() => bob.view!.phase.name === "choosing");
     await choose(alice, "rock");
     await choose(bob, "scissors");
@@ -171,8 +171,6 @@ describe("rock paper scissors", () => {
     expect(result.winners).toEqual([alice.identity.userId]);
     expect(message.final).toBe(true);
     expect(message.names).toEqual({ [alice.identity.userId]: "Alice", [bob.identity.userId]: "Bob" });
-    expect(message.scores[alice.identity.userId]).toBe(1);
-    expect(bob.view!.game!.scores[alice.identity.userId]).toBe(1);
     for (const [userId, pick] of Object.entries(result.picks)) {
       expect(result.commitments[userId]).toBe(commitOf(bob, userId)!.commitment);
       expect(await verifyCommitment(sessionId, 1, userId, pick!, result.commitments[userId])).toBe(true);
@@ -196,12 +194,13 @@ describe("rock paper scissors", () => {
     expect(result.winners).toEqual([alice.identity.userId]);
 
     await expireAndRunAlarm(sessionId, (s) => (s.phase.deadline = Date.now() - 1));
-    await bob.waitFor(() => bob.view!.phase.name === "choosing" && bob.view!.game!.round === 2);
+    await bob.waitFor(() => bob.view!.status === "finished");
+    expect(bob.view!.phase.name).toBe("finished");
   });
 
   it("returns to the lobby when the host restarts a finished game", async () => {
     const { sessionId, alice, bob } = await lobbyWithTwo();
-    await alice.act({ type: "start", rounds: 1 });
+    await alice.act({ type: "start" });
     await alice.waitFor(() => alice.view!.phase.name === "choosing");
     await choose(alice, "rock");
     await choose(bob, "rock");
@@ -242,7 +241,7 @@ describe("disconnect and recovery", () => {
 
   it("keeps state consistent for a live client across a full game", async () => {
     const { alice, bob } = await lobbyWithTwo();
-    await alice.act({ type: "start", rounds: 1 });
+    await alice.act({ type: "start" });
     await bob.waitFor(() => bob.view!.phase.name === "choosing");
     await choose(bob, "paper");
     await choose(alice, "rock");

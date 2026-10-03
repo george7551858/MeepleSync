@@ -1,14 +1,13 @@
 import { useState, type ReactNode } from "react";
 import { HANDS, HAND_TEXT } from "../../shared/games/rps";
-import { GAME_MODES, type Action, type GameMode, type Role } from "../../shared/protocol";
+import type { Action, GameMode, Role } from "../../shared/protocol";
 import type { Navigate } from "../App";
 import { ConnectionBanner } from "../components/ConnectionBanner";
+import { Meeple } from "../components/Meeple";
 import { ParticipantList } from "../components/ParticipantList";
-import { PhaseBar } from "../components/PhaseBar";
-import { RpsPanel } from "../components/RpsPanel";
 import { TextPanel } from "../components/TextPanel";
-import { loadIdentity, saveName, type Identity } from "../identity";
-import { HAND_EMOJI, MODE_LABEL, errorLabel } from "../labels";
+import { loadIdentity, randomName, saveName, type Identity } from "../identity";
+import { HAND_EMOJI, PHASE_LABEL, errorLabel } from "../labels";
 import { useServerNow, useSession } from "../useSession";
 
 interface Props {
@@ -20,18 +19,24 @@ interface Props {
 export function Room(props: Props) {
   const [identity, setIdentity] = useState(loadIdentity);
   const [name, setName] = useState("");
+  const [placeholder] = useState(randomName);
   if (identity.name) return <RoomInner {...props} identity={identity} />;
+  const displayName = name.trim() || placeholder;
   return (
-    <main>
+    <main className="home">
       <h1>加入房間 {props.sessionId}</h1>
+      <div className="avatar-preview">
+        <Meeple name={displayName} size={48} />
+      </div>
       <form
         className="row"
+        style={{ justifyContent: "center" }}
         onSubmit={(e) => {
           e.preventDefault();
-          setIdentity(saveName(name));
+          setIdentity(saveName(displayName));
         }}
       >
-        <input autoFocus value={name} maxLength={20} placeholder="你的名字" onChange={(e) => setName(e.target.value)} />
+        <input autoFocus value={name} maxLength={20} placeholder={placeholder} onChange={(e) => setName(e.target.value)} />
         <button className="primary" type="submit">
           加入
         </button>
@@ -50,10 +55,62 @@ function Terminal({ message, children }: { message: string; children: ReactNode 
   );
 }
 
+
+/* ── Collapsible participant drawer ────────────────── */
+
+function ParticipantDrawer({
+  view,
+  meId,
+  now,
+  canChangeRole,
+  onRoleChange,
+}: {
+  view: import("../../shared/protocol").SessionView;
+  meId: string;
+  now: number;
+  canChangeRole: boolean;
+  onRoleChange: (role: import("../../shared/protocol").Role) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const me = view.participants.find((p) => p.userId === meId);
+  const players = view.participants.filter((p) => p.role === "player" && !p.left);
+  const observers = view.participants.filter((p) => p.role === "observer");
+  const total = players.length + observers.length;
+  const roleLabel = me ? (me.role === "player" ? "玩家" : "觀察者") : "";
+
+  const { phase } = view;
+  const remaining = phase.deadline === null ? null : Math.max(0, Math.ceil((phase.deadline - now) / 1000));
+  const phaseLabel = view.status === "lobby" && view.mode === "text"
+    ? "任意文字"
+    : (PHASE_LABEL[phase.name] ?? phase.name);
+
+  return (
+    <div className="drawer">
+      <button className="drawer-toggle" onClick={() => setOpen(!open)}>
+        <span>
+          <Meeple name={me?.name ?? "?"} size={16} />
+          {" "}
+          {roleLabel}
+          <span className="muted"> · {total} 人在線</span>
+          {remaining !== null && <span className="muted"> · 剩餘 {remaining}s</span>}
+          <span className="muted"> · {phaseLabel}</span>
+        </span>
+        <span className="drawer-arrow">{open ? "▲" : "▼"}</span>
+      </button>
+      {open && (
+        <div className="drawer-body">
+          <ParticipantList view={view} meId={meId} canChangeRole={canChangeRole} onRoleChange={onRoleChange} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Main room view ────────────────────────────────── */
+
 function RoomInner({ sessionId, role, navigate, identity }: Props & { identity: Identity }) {
   const [attempt, setAttempt] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [rounds, setRounds] = useState(3);
   const session = useSession(sessionId, identity, role, attempt);
   const now = useServerNow(session.clockOffset);
   const home = <button onClick={() => navigate("/")}>回首頁</button>;
@@ -98,88 +155,62 @@ function RoomInner({ sessionId, role, navigate, identity }: Props & { identity: 
     return ack.ok;
   };
 
+  // Whether the "開始" button should replace "送出"
+  const inLobbyOrFinished = !!view && (view.status === "lobby" || view.status === "finished");
+  const showStart = inLobbyOrFinished && isHost && view.mode !== "text";
+  const playerCount = view ? view.participants.filter((p) => p.role === "player" && !p.left).length : 0;
+
+  const handleStart = async () => {
+    // If finished, restart first to return to lobby, then start
+    if (view?.status === "finished") await run({ type: "restart" });
+    void run({ type: "start" });
+  };
+
+  const handleModeChange = async (m: GameMode) => {
+    if (view?.status === "finished") await run({ type: "restart" });
+    void run({ type: "set_mode", mode: m });
+  };
+
   return (
-    <main>
-      <div className="row" style={{ justifyContent: "space-between" }}>
-        <h1>房間 {sessionId}</h1>
-        <div className="row">
-          <button onClick={() => navigator.clipboard.writeText(shareUrl)}>複製連結</button>
-          <button onClick={() => session.leave()}>離開</button>
+    <main className="room">
+      {/* ── Top bar ── */}
+      <header className="room-header">
+        <span className="room-title">
+          <strong>{sessionId}</strong>
+        </span>
+        <div className="row" style={{ gap: 4 }}>
+          <button className="header-btn" onClick={() => navigator.clipboard.writeText(shareUrl)}>複製連結</button>
+          <button className="header-btn danger-text" onClick={() => session.leave()}>離開房間</button>
         </div>
-      </div>
+      </header>
 
       <ConnectionBanner status={session.status} />
 
       {view && (
         <>
-          <PhaseBar view={view} me={me} now={now} />
-          {error && <p className="error">{error}</p>}
-          <ParticipantList view={view} meId={identity.userId} />
+          <ParticipantDrawer
+            view={view}
+            meId={identity.userId}
+            now={now}
+            canChangeRole={view.status === "lobby" && connected}
+            onRoleChange={(role) => { void run({ type: "set_role", role }); }}
+          />
 
-          {view.status === "lobby" && me && (
-            <section>
-              <h2>準備</h2>
-              <div className="row">
-                <button
-                  disabled={!connected}
-                  onClick={() => run({ type: "set_role", role: me.role === "player" ? "observer" : "player" })}
-                >
-                  {me.role === "player" ? "改為觀察者" : "改為玩家"}
-                </button>
-                {isHost ? (
-                  <select
-                    value={view.mode}
-                    disabled={!connected}
-                    onChange={(e) => run({ type: "set_mode", mode: e.target.value as GameMode })}
-                  >
-                    {GAME_MODES.map((m) => (
-                      <option key={m} value={m}>
-                        模式：{MODE_LABEL[m]}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <span>模式：{MODE_LABEL[view.mode]}</span>
-                )}
-                {isHost && view.mode === "rps" && (
-                  <>
-                    <select value={rounds} onChange={(e) => setRounds(Number(e.target.value))}>
-                      {[1, 3, 5].map((n) => (
-                        <option key={n} value={n}>
-                          {n} 回合
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      className="primary"
-                      disabled={!connected || view.participants.filter((p) => p.role === "player").length < 2}
-                      onClick={() => run({ type: "start", rounds })}
-                    >
-                      開始猜拳
-                    </button>
-                  </>
-                )}
-              </div>
-            </section>
-          )}
-
-          {view.game?.kind === "rps" && <RpsPanel view={view} game={view.game} />}
-
-          {view.status === "finished" && isHost && (
-            <section>
-              <button className="primary" disabled={!connected} onClick={() => run({ type: "restart" })}>
-                再玩一次
-              </button>
-            </section>
-          )}
+          {error && <p className="error" style={{ margin: "4px 0", padding: "0 12px" }}>{error}</p>}
 
           <TextPanel
             sessionId={sessionId}
             messages={view.messages}
             meId={identity.userId}
             disabled={!connected || !me || me.left}
-            options={mustChoose ? HANDS.map((h) => ({ text: HAND_TEXT[h], label: HAND_EMOJI[h] })) : null}
+            options={mustChoose ? HANDS.map((h) => ({ text: HAND_TEXT[h], label: `${HAND_EMOJI[h]} ${HAND_TEXT[h]}` })) : null}
             onPost={(text) => run({ type: "text.post", text })}
+            mode={view.mode}
+            canChangeMode={isHost && inLobbyOrFinished && connected}
+            onModeChange={(m: GameMode) => { void handleModeChange(m); }}
+            showStart={showStart}
+            startDisabled={playerCount < 2}
+            onStart={() => { void handleStart(); }}
           />
         </>
       )}

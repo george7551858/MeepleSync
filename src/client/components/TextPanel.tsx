@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { TEXT_MAX_LENGTH, type TextMessage } from "../../shared/protocol";
+import { parseHand } from "../../shared/games/rps";
+import { GAME_MODES, TEXT_MAX_LENGTH, type GameMode, type TextMessage } from "../../shared/protocol";
+import { HAND_EMOJI, MODE_LABEL } from "../labels";
+import { Meeple } from "./Meeple";
 import { RpsResultMessage } from "./RpsPanel";
 
 interface Props {
@@ -10,6 +13,18 @@ interface Props {
   /** When set, the current phase is waiting on me and only these texts are accepted. */
   options: { text: string; label: string }[] | null;
   onPost: (text: string) => Promise<boolean>;
+
+  /** Current room mode. */
+  mode: GameMode;
+  /** Whether mode can be changed (host + lobby). */
+  canChangeMode: boolean;
+  onModeChange: (mode: GameMode) => void;
+
+  /** Show "開始" instead of "送出" (host + lobby + game mode). */
+  showStart: boolean;
+  /** Whether the start button should be disabled (e.g. not enough players). */
+  startDisabled: boolean;
+  onStart: () => void;
 }
 
 function formatTime(ts: number): string {
@@ -18,7 +33,11 @@ function formatTime(ts: number): string {
 
 function Message({ sessionId, m, meId }: { sessionId: string; m: TextMessage; meId: string }) {
   if (m.kind === "rps_result") return <RpsResultMessage sessionId={sessionId} message={m} />;
-  const who = <strong>{m.userId === meId ? `${m.name}（你）` : m.name}</strong>;
+  const who = (
+    <span className="msg-author">
+      <Meeple name={m.name} size={14} /> <strong>{m.userId === meId ? `${m.name}（你）` : m.name}</strong>
+    </span>
+  );
   if (m.kind === "text") {
     return (
       <>
@@ -26,15 +45,79 @@ function Message({ sessionId, m, meId }: { sessionId: string; m: TextMessage; me
       </>
     );
   }
+  const hand = m.text ? parseHand(m.text) : null;
+  const handDisplay = hand ? `${HAND_EMOJI[hand]} ${m.text}` : m.text;
   return (
     <>
-      {who}：已出拳 <span className="hash">#{m.commitment.slice(0, 12)}</span>
-      {m.text && `（你出了 ${m.text}，已鎖定）`}
+      {who}：已出招
+      {m.text && `（你出了 ${handDisplay}，已鎖定）`}
     </>
   );
 }
 
-export function TextPanel({ sessionId, messages, meId, disabled, options, onPost }: Props) {
+/* ── Mode picker (left of input) ───────────────────── */
+
+function ModePicker({
+  mode,
+  canChange,
+  onChange,
+}: {
+  mode: GameMode;
+  canChange: boolean;
+  onChange: (m: GameMode) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const onBlur = (e: React.FocusEvent) => {
+    if (!ref.current?.contains(e.relatedTarget as Node)) setOpen(false);
+  };
+
+  return (
+    <div className="mode-anchor" ref={ref} onBlur={onBlur}>
+      <button
+        type="button"
+        className="mode-btn"
+        disabled={!canChange}
+        onClick={() => setOpen(!open)}
+        title={canChange ? "切換模式" : MODE_LABEL[mode]}
+      >
+        {MODE_LABEL[mode]} {canChange && "▾"}
+      </button>
+      {open && canChange && (
+        <div className="mode-dropdown">
+          {GAME_MODES.map((m) => (
+            <button
+              key={m}
+              type="button"
+              className={m === mode ? "active" : ""}
+              onClick={() => { onChange(m); setOpen(false); }}
+            >
+              {m === mode ? "✓ " : ""}{MODE_LABEL[m]}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Main panel ────────────────────────────────────── */
+
+export function TextPanel({
+  sessionId,
+  messages,
+  meId,
+  disabled,
+  options,
+  onPost,
+  mode,
+  canChangeMode,
+  onModeChange,
+  showStart,
+  startDisabled,
+  onStart,
+}: Props) {
   const [text, setText] = useState("");
   const listRef = useRef<HTMLUListElement>(null);
   const lastId = messages.at(-1)?.id;
@@ -49,9 +132,17 @@ export function TextPanel({ sessionId, messages, meId, disabled, options, onPost
     if (await onPost(value)) setText("");
   };
 
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (showStart) {
+      onStart();
+    } else if (valid) {
+      void submit(text);
+    }
+  };
+
   return (
-    <section>
-      <h2>文字</h2>
+    <section className="chat-area">
       {messages.length ? (
         <ul ref={listRef} className="plain messages">
           {messages.map((m) => (
@@ -64,27 +155,11 @@ export function TextPanel({ sessionId, messages, meId, disabled, options, onPost
           ))}
         </ul>
       ) : (
-        <p className="muted">還沒有人輸入文字</p>
+        <div className="messages-empty">
+          <span className="muted">還沒有人輸入文字</span>
+        </div>
       )}
-      {allowed && <p>出拳中：只能輸入 {allowed.join("、")}，送出後無法修改</p>}
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (valid) void submit(text);
-        }}
-      >
-        <input
-          className="grow"
-          value={text}
-          maxLength={TEXT_MAX_LENGTH}
-          placeholder={allowed ? `輸入 ${allowed.join("、")}` : "輸入任意文字"}
-          onChange={(e) => setText(e.target.value)}
-        />
-        <button className="primary" type="submit" disabled={disabled || !valid}>
-          送出
-        </button>
-      </form>
+      {allowed && <p className="chat-hint">出拳中：只能輸入 {allowed.join("、")}，送出後無法修改</p>}
       {options && (
         <div className="row quick">
           {options.map((o) => (
@@ -101,6 +176,30 @@ export function TextPanel({ sessionId, messages, meId, disabled, options, onPost
           ))}
         </div>
       )}
+      <form className="chat-input" onSubmit={handleFormSubmit}>
+        <ModePicker mode={mode} canChange={canChangeMode} onChange={onModeChange} />
+        {showStart ? (
+          <>
+            <span className="grow chat-start-hint muted">人齊後點開始</span>
+            <button className="primary" type="submit" disabled={disabled || startDisabled}>
+              開始
+            </button>
+          </>
+        ) : (
+          <>
+            <input
+              className="grow"
+              value={text}
+              maxLength={TEXT_MAX_LENGTH}
+              placeholder={allowed ? `輸入 ${allowed.join("、")}` : "輸入訊息…"}
+              onChange={(e) => setText(e.target.value)}
+            />
+            <button className="primary" type="submit" disabled={disabled || !valid}>
+              送出
+            </button>
+          </>
+        )}
+      </form>
     </section>
   );
 }

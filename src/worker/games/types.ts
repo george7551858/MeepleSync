@@ -23,7 +23,7 @@ export interface GameContext {
 export interface GameModule<S = unknown> {
   kind: string;
   minPlayers: number;
-  create(players: string[], options: { rounds?: number }): S;
+  create(players: string[]): S;
   /** Enter the first phase. Called right after the initial `game_set` event. */
   begin(ctx: GameContext, state: S): void;
   /**

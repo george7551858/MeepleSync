@@ -1,7 +1,5 @@
 export const CHOOSE_MS = 20_000;
 export const REVEAL_MS = 5_000;
-export const DEFAULT_ROUNDS = 3;
-export const MAX_ROUNDS = 10;
 export const DISCONNECT_GRACE_MS = 60_000;
 export const IDLE_MS = 30 * 60_000;
 export const EVENT_LOG_LIMIT = 1000;

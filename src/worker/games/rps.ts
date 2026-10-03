@@ -8,14 +8,12 @@ import {
   type RpsRoundResult,
   type RpsView,
 } from "../../shared/games/rps";
-import { CHOOSE_MS, DEFAULT_ROUNDS, MAX_ROUNDS, REVEAL_MS } from "../config";
+import { CHOOSE_MS, REVEAL_MS } from "../config";
 import type { GameContext, GameModule } from "./types";
 
 export interface RpsState {
-  totalRounds: number;
   round: number;
   players: string[];
-  scores: Record<string, number>;
   picks: Record<string, { choice: Hand; nonce: string; commitment: string }>;
 }
 
@@ -36,7 +34,6 @@ function startRound(ctx: GameContext, s: RpsState): void {
 function reveal(ctx: GameContext, s: RpsState): void {
   const choices = Object.fromEntries(Object.entries(s.picks).map(([id, p]) => [id, p.choice]));
   const { winners, draw } = judge(s.players, choices);
-  for (const w of winners) s.scores[w] += 1;
   const result: RpsRoundResult = {
     round: s.round,
     picks: Object.fromEntries(
@@ -46,13 +43,13 @@ function reveal(ctx: GameContext, s: RpsState): void {
     winners,
     draw,
   };
-  ctx.emit({ type: "rps_revealed", data: { scores: { ...s.scores } } });
+  ctx.emit({ type: "rps_revealed", data: { scores: {} } });
   ctx.post({
     kind: "rps_result",
     result,
     names: Object.fromEntries(s.players.map((id) => [id, ctx.nameOf(id)])),
-    scores: { ...s.scores },
-    final: s.round >= s.totalRounds,
+    scores: {},
+    final: true,
   });
   ctx.setPhase("revealed", { durationMs: REVEAL_MS });
 }
@@ -61,13 +58,10 @@ export const rps: GameModule<RpsState> = {
   kind: "rps",
   minPlayers: 2,
 
-  create(players, { rounds }) {
-    const totalRounds = Math.min(MAX_ROUNDS, Math.max(1, Math.floor(rounds ?? DEFAULT_ROUNDS)));
+  create(players) {
     return {
-      totalRounds,
       round: 0,
       players,
-      scores: Object.fromEntries(players.map((p) => [p, 0])),
       picks: {},
     };
   },
@@ -92,19 +86,16 @@ export const rps: GameModule<RpsState> = {
 
   onPhaseEnd(ctx, s, phaseName) {
     if (phaseName === "choosing") reveal(ctx, s);
-    else if (phaseName === "revealed") {
-      if (s.round < s.totalRounds) startRound(ctx, s);
-      else ctx.finish();
-    }
+    else if (phaseName === "revealed") ctx.finish();
   },
 
   project(s): RpsView {
     return {
       kind: "rps",
-      totalRounds: s.totalRounds,
+      totalRounds: 1,
       round: s.round,
       players: [...s.players],
-      scores: { ...s.scores },
+      scores: {},
     };
   },
 };

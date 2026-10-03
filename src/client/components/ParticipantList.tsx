@@ -1,11 +1,20 @@
-import type { ParticipantView, SessionView } from "../../shared/protocol";
+import type { ParticipantView, Role, SessionView } from "../../shared/protocol";
+import { Meeple } from "./Meeple";
+
+interface Props {
+  view: SessionView;
+  meId: string;
+  /** Whether the current user can switch roles (lobby only). */
+  canChangeRole: boolean;
+  onRoleChange: (role: Role) => void;
+}
 
 function Row({ p, view, meId }: { p: ParticipantView; view: SessionView; meId: string }) {
   const req = view.phase.requirement;
   const status = p.left ? "已離開" : p.connected ? "" : "斷線中";
   return (
-    <li>
-      <span className={p.connected ? "dot-on" : "dot-off"}>●</span>{" "}
+    <li className="participant-row">
+      <Meeple name={p.name} size={18} />
       <span className={p.left ? "gone" : ""}>{p.name}</span>
       {p.userId === meId && " (你)"}
       {view.hostId === p.userId && " [主持]"}
@@ -17,7 +26,8 @@ function Row({ p, view, meId }: { p: ParticipantView; view: SessionView; meId: s
   );
 }
 
-export function ParticipantList({ view, meId }: { view: SessionView; meId: string }) {
+export function ParticipantList({ view, meId, canChangeRole, onRoleChange }: Props) {
+  const me = view.participants.find((p) => p.userId === meId);
   const players = view.participants.filter((p) => p.role === "player");
   const observers = view.participants.filter((p) => p.role === "observer");
   return (
@@ -37,6 +47,14 @@ export function ParticipantList({ view, meId }: { view: SessionView; meId: strin
             ))}
           </ul>
         </>
+      )}
+      {canChangeRole && me && (
+        <button
+          className="role-switch-btn"
+          onClick={() => onRoleChange(me.role === "player" ? "observer" : "player")}
+        >
+          {me.role === "player" ? "改為觀察者" : "改為玩家"}
+        </button>
       )}
     </section>
   );

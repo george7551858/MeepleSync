@@ -302,8 +302,7 @@ export class SessionDO extends DurableObject<Env> {
         if (!game) return fail("no_game");
         const players = this.activePlayers();
         if (players.length < game.minPlayers) return fail("not_enough_players");
-        const rounds = typeof action.rounds === "number" ? action.rounds : undefined;
-        const gameState = game.create(players, { rounds });
+        const gameState = game.create(players);
         s.game = { kind: game.kind, state: gameState };
         s.status = "playing";
         this.emit(tx, { type: "status_changed", data: { status: "playing" } });
