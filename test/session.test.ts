@@ -360,3 +360,74 @@ describe("text messages", () => {
     expect(bob.view).toEqual(await bob.syncFresh());
   });
 });
+
+describe("player status", () => {
+  it("allows any player to set a status, visible to all and recorded in messages", async () => {
+    const { alice, bob } = await lobbyWithTwo("text");
+    expect(await alice.act({ type: "set_status", status: "#ffe600" })).toMatchObject({ ok: true });
+
+    await bob.waitFor(() => bob.view!.participants.find((p) => p.userId === alice.identity.userId)?.status === "#ffe600");
+    expect(bob.view!.participants.find((p) => p.userId === alice.identity.userId)?.status).toBe("#ffe600");
+
+    await bob.waitFor(() => texts(bob).length === 1);
+    expect(texts(bob)[0].text).toBe("將狀態更新為「#ffe600」");
+    expect(bob.view).toEqual(await bob.syncFresh());
+    expect(alice.view).toEqual(await alice.syncFresh());
+  });
+
+  it("records status clearing when set to empty string", async () => {
+    const { alice, bob } = await lobbyWithTwo("text");
+    await alice.act({ type: "set_status", status: "忙碌中" });
+    await bob.waitFor(() => texts(bob).length === 1);
+
+    expect(await alice.act({ type: "set_status", status: "" })).toMatchObject({ ok: true });
+    await bob.waitFor(() => bob.view!.participants.find((p) => p.userId === alice.identity.userId)?.status === "");
+    await bob.waitFor(() => texts(bob).length === 2);
+    expect(texts(bob)[1].text).toBe("清除了狀態");
+    expect(bob.view).toEqual(await bob.syncFresh());
+  });
+
+  it("is idempotent when retried with the same actionId", async () => {
+    const { alice, bob } = await lobbyWithTwo("text");
+    const actionId = crypto.randomUUID();
+    const first = await alice.act({ type: "set_status", status: "AFK" }, actionId);
+    const retry = await alice.act({ type: "set_status", status: "AFK" }, actionId);
+    expect(first).toMatchObject({ ok: true });
+    expect(retry).toMatchObject({ ok: true });
+
+    await bob.waitFor(() => texts(bob).length === 1);
+    expect(bob.received.filter((e) => e.type === "participant_updated" && "status" in e.data.changes)).toHaveLength(1);
+    expect(texts(bob)).toHaveLength(1);
+  });
+
+  it("allows observers to set status as well", async () => {
+    const { sessionId, alice } = await lobbyWithTwo("text");
+    const carol = await TestClient.connect(sessionId, makeIdentity("Carol"), "observer");
+    await carol.ready();
+
+    expect(await carol.act({ type: "set_status", status: "#ff4d6d" })).toMatchObject({ ok: true });
+    await alice.waitFor(() => alice.view!.participants.find((p) => p.userId === carol.identity.userId)?.status === "#ff4d6d");
+    expect(alice.view).toEqual(await alice.syncFresh());
+  });
+
+  it("supports setting status with color code and additional text", async () => {
+    const { alice, bob } = await lobbyWithTwo("text");
+    expect(await alice.act({ type: "set_status", status: "#54ff6e  沉思" })).toMatchObject({ ok: true });
+
+    await bob.waitFor(() => bob.view!.participants.find((p) => p.userId === alice.identity.userId)?.status === "#54ff6e  沉思");
+    expect(bob.view!.participants.find((p) => p.userId === alice.identity.userId)?.status).toBe("#54ff6e  沉思");
+
+    await bob.waitFor(() => texts(bob).length === 1);
+    expect(texts(bob)[0].text).toBe("將狀態更新為「#54ff6e  沉思」");
+    expect(bob.view).toEqual(await bob.syncFresh());
+  });
+
+  it("parses color code and text correctly with parseStatus", async () => {
+    const { parseStatus } = await import("../src/client/nameColor");
+    expect(parseStatus("#54ff6e  沉思")).toEqual({ color: "#54ff6e", text: "沉思" });
+    expect(parseStatus("#54ff6e")).toEqual({ color: "#54ff6e", text: "" });
+    expect(parseStatus("沉思")).toEqual({ color: null, text: "沉思" });
+    expect(parseStatus("")).toEqual({ color: null, text: "" });
+  });
+});
+

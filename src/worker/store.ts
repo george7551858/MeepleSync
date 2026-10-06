@@ -114,7 +114,14 @@ export class Store {
   loadState(): SessionState | null {
     if (!this.exists()) return null;
     const rows = this.sql.exec<{ value: string }>("SELECT value FROM kv WHERE key = 'state'").toArray();
-    return rows.length ? JSON.parse(rows[0].value) : null;
+    if (!rows.length) return null;
+    const state = JSON.parse(rows[0].value) as SessionState;
+    if (state.participants) {
+      for (const p of Object.values(state.participants)) {
+        if (typeof p.status !== "string") p.status = "";
+      }
+    }
+    return state;
   }
 
   saveState(state: SessionState): void {

@@ -28,6 +28,7 @@ const ERROR_LABEL: Record<string, string> = {
   invalid_text: "文字不能是空的，也不能超過 200 字",
   no_game: "任意文字模式沒有遊戲可以開始",
   invalid_choice: "出拳中只能輸入 剪刀、石頭 或 布",
+  invalid_status: "狀態格式不正確",
 };
 
 export function errorLabel(code: string): string {

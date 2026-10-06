@@ -29,6 +29,8 @@ export interface ParticipantView {
   connected: boolean;
   /** Gave up their seat during a game (explicit leave or disconnect grace expired). */
   left: boolean;
+  /** Free-text status set by the player, visible to everyone. */
+  status: string;
 }
 
 export interface Requirement {
@@ -61,7 +63,7 @@ export interface SessionView {
   messages: TextMessage[];
 }
 
-export type ParticipantChanges = Partial<Pick<ParticipantView, "name" | "role" | "connected" | "left">>;
+export type ParticipantChanges = Partial<Pick<ParticipantView, "name" | "role" | "connected" | "left" | "status">>;
 
 export type EventBody =
   | { type: "participant_joined"; data: { participant: ParticipantView } }
@@ -83,6 +85,7 @@ export type Action =
   | { type: "restart" }
   | { type: "set_role"; role: Role }
   | { type: "set_mode"; mode: GameMode }
+  | { type: "set_status"; status: string }
   | { type: "text.post"; text: string };
 
 export type ClientMessage =
@@ -120,6 +123,7 @@ export function normalizeName(raw: unknown): string | null {
 }
 
 export const TEXT_MAX_LENGTH = 200;
+export const STATUS_MAX_LENGTH = 40;
 export const MESSAGE_HISTORY = 50;
 
 /** Returns null for empty or over-long text. */

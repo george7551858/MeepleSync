@@ -35,7 +35,7 @@ function Message({ sessionId, m, meId }: { sessionId: string; m: TextMessage; me
   if (m.kind === "rps_result") return <RpsResultMessage sessionId={sessionId} message={m} />;
   const who = (
     <span className="msg-author">
-      <Meeple name={m.name} size={14} /> <strong>{m.userId === meId ? `${m.name}（你）` : m.name}</strong>
+      <Meeple name={m.name} size={18} /> <strong>{m.userId === meId ? `${m.name}（你）` : m.name}</strong>
     </span>
   );
   if (m.kind === "text") {
@@ -93,7 +93,7 @@ function ModePicker({
               className={m === mode ? "active" : ""}
               onClick={() => { onChange(m); setOpen(false); }}
             >
-              {m === mode ? "✓ " : ""}{MODE_LABEL[m]}
+              {MODE_LABEL[m]}
             </button>
           ))}
         </div>

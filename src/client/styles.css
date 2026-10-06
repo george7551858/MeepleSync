@@ -39,7 +39,7 @@ button,
 input,
 select {
   font: inherit;
-  padding: 4px 10px;
+  padding: 6px 12px;
   border: 1px solid #111;
   background: #fff;
   color: #111;
@@ -142,6 +142,7 @@ main.room {
   margin: 0 auto;
   padding: 0;
   overflow: hidden;
+  font-size: 16px;
 }
 
 /* ── Room header ───────────────────────────── */
@@ -150,22 +151,22 @@ main.room {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
+  padding: 10px 14px;
   border-bottom: 1px solid #ddd;
   background: #fff;
   flex-shrink: 0;
 }
 
 .room-title {
-  font-size: 0.95rem;
+  font-size: 1.1rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .header-btn {
-  font-size: 0.8rem;
-  padding: 2px 8px;
+  font-size: 0.95rem;
+  padding: 6px 12px;
   border: 1px solid #ccc;
   background: #fff;
   color: #555;
@@ -191,10 +192,10 @@ main.room {
   width: 100%;
   justify-content: space-between;
   align-items: center;
-  padding: 6px 12px;
+  padding: 10px 14px;
   border: none;
   background: transparent;
-  font-size: 0.85rem;
+  font-size: 1rem;
   cursor: pointer;
   text-align: left;
 }
@@ -204,19 +205,19 @@ main.room {
 }
 
 .drawer-arrow {
-  font-size: 0.7rem;
+  font-size: 0.8rem;
   color: #999;
   margin-left: 8px;
 }
 
 .drawer-body {
-  padding: 4px 12px 8px;
+  padding: 8px 14px 12px;
   border-top: 1px solid #f0f0f0;
 }
 
 .drawer-body h2 {
-  font-size: 0.85rem;
-  margin: 8px 0 4px;
+  font-size: 0.95rem;
+  margin: 10px 0 6px;
   border: none;
 }
 
@@ -234,10 +235,11 @@ ul.messages {
   flex: 1;
   overflow-y: auto;
   margin: 0;
-  padding: 8px 12px;
+  padding: 10px 14px;
   border: none;
   background: #fafafa;
   word-break: break-word;
+  font-size: 1.05rem;
   /* Remove old max-height; flex handles it */
 }
 
@@ -247,13 +249,14 @@ ul.messages {
   align-items: center;
   justify-content: center;
   color: #999;
+  font-size: 1rem;
 }
 
 ul.messages > li {
   display: grid;
-  grid-template-columns: 6ch 1fr;
-  gap: 1ch;
-  padding: 6px 0;
+  grid-template-columns: 6.5ch 1fr;
+  gap: 1.2ch;
+  padding: 8px 0;
   border-bottom: 1px dotted #e5e5e5;
 }
 
@@ -262,17 +265,17 @@ ul.messages > li:last-child {
 }
 
 .chat-hint {
-  padding: 4px 12px;
+  padding: 8px 14px;
   margin: 0;
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   background: #fff6db;
   flex-shrink: 0;
 }
 
 .chat-input {
   display: flex;
-  gap: 0;
-  padding: 8px 12px;
+  gap: 8px;
+  padding: 10px 14px;
   background: #fff;
   border-top: 1px solid #ddd;
   flex-shrink: 0;
@@ -282,16 +285,21 @@ ul.messages > li:last-child {
 .chat-input input {
   flex: 1;
   min-width: 0;
-  border-right: none;
+  font-size: 1.05rem;
+  padding: 8px 12px;
+  border: 1px solid #111;
 }
 
 .chat-input button {
   flex-shrink: 0;
+  font-size: 1.05rem;
+  padding: 8px 18px;
+  border: 1px solid #111;
 }
 
 .chat-start-hint {
-  padding: 4px 10px;
-  font-size: 0.85rem;
+  padding: 8px 12px;
+  font-size: 1rem;
   text-align: center;
 }
 
@@ -303,14 +311,17 @@ ul.messages > li:last-child {
 }
 
 .mode-btn {
-  padding: 4px 8px;
-  font-size: 0.85rem;
+  padding: 8px 12px;
+  font-size: 0.95rem;
   border: 1px solid #ccc;
   background: #f6f6f6;
   color: #333;
   cursor: pointer;
   white-space: nowrap;
-  border-right: none;
+}
+
+.mode-btn:hover:not(:disabled) {
+  background: #ececec;
 }
 
 .mode-btn:disabled {
@@ -323,22 +334,24 @@ ul.messages > li:last-child {
   left: 0;
   bottom: 100%;
   z-index: 100;
-  min-width: 120px;
+  min-width: 140px;
   background: #fff;
   border: 1px solid #ddd;
   box-shadow: 0 -4px 12px rgba(0,0,0,.1);
   display: flex;
   flex-direction: column;
-  margin-bottom: 2px;
+  gap: 4px;
+  padding: 6px;
+  margin-bottom: 6px;
 }
 
 .mode-dropdown button {
   border: none;
-  border-radius: 0;
+  border-radius: 2px;
   text-align: left;
-  padding: 8px 14px;
+  padding: 8px 12px;
   background: transparent;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   width: 100%;
   box-sizing: border-box;
 }
@@ -349,16 +362,22 @@ ul.messages > li:last-child {
 
 .mode-dropdown button.active {
   font-weight: bold;
+  background: #ebebeb;
+}
+
+.mode-dropdown button.active:hover {
+  background: #e2e2e2;
 }
 
 /* ── Misc shared ───────────────────────────── */
 
 .banner {
-  padding: 6px 10px;
+  padding: 8px 12px;
   margin: 0;
   border: none;
   border-bottom: 1px dashed #b00020;
   color: #b00020;
+  font-size: 0.95rem;
   flex-shrink: 0;
 }
 
@@ -387,16 +406,17 @@ ul.indent {
 }
 
 .quick {
-  padding: 4px 12px;
+  padding: 8px 14px;
   margin: 0;
   flex-shrink: 0;
   justify-content: center;
+  gap: 10px;
 }
 
 button.emoji {
-  font-size: 1.05rem;
+  font-size: 1.25rem;
   line-height: 1.4;
-  padding: 6px 14px;
+  padding: 10px 20px;
 }
 
 .time {
@@ -406,7 +426,7 @@ button.emoji {
 }
 
 .rps-block {
-  padding: 6px 10px;
+  padding: 8px 12px;
   background: #fff6db;
   border-left: 3px solid #e0a800;
 }
@@ -430,7 +450,9 @@ th {
 .participant-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 1rem;
 }
 
 .msg-author {
@@ -438,11 +460,95 @@ th {
 }
 
 .role-switch-btn {
-  margin-top: 8px;
-  font-size: 0.85rem;
-  padding: 3px 10px;
+  margin-top: 10px;
+  font-size: 0.95rem;
+  padding: 8px 14px;
   border: 1px solid #ccc;
   background: #f6f6f6;
   color: #555;
   width: 100%;
+}
+
+.role-switch-btn:hover {
+  background: #eee;
+}
+
+/* ── Status editor ─────────────────────────── */
+
+.status-editor {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: #f8f8f8;
+  border: 1px solid #e0e0e0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.status-presets {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-label {
+  font-size: 0.9rem;
+  color: #555;
+}
+
+.preset-swatch {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  border-radius: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.preset-swatch:hover {
+  transform: scale(1.12);
+}
+
+.preset-swatch.active {
+  box-shadow: 0 0 0 2px #111;
+  border-color: #111;
+}
+
+.status-form {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.status-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.95rem;
+  padding: 6px 10px;
+  border: 1px solid #ccc;
+  background: #fff;
+}
+
+.status-input:focus {
+  border-color: #111;
+  outline: none;
+}
+
+.status-form button {
+  padding: 6px 12px;
+  font-size: 0.95rem;
+  flex-shrink: 0;
+}
+
+.status-clear-btn {
+  background: #f0f0f0;
+  border-color: #ccc;
+  color: #666;
+}
+
+.participant-status-tag {
+  font-size: 0.85em;
+  font-style: italic;
 }

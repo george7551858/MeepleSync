@@ -4,6 +4,7 @@ import {
   CloseCode,
   PING,
   PONG,
+  STATUS_MAX_LENGTH,
   isGameMode,
   normalizeName,
   normalizeText,
@@ -42,7 +43,7 @@ import {
 } from "./store";
 
 const GAMES: Record<string, GameModule<any>> = { [rps.kind]: rps };
-const PLATFORM_ACTIONS = new Set(["start", "restart", "set_role", "set_mode", "text.post"]);
+const PLATFORM_ACTIONS = new Set(["start", "restart", "set_role", "set_mode", "set_status", "text.post"]);
 const HOST_ACTIONS = new Set(["start", "restart", "set_mode"]);
 
 interface Attachment {
@@ -223,6 +224,7 @@ export class SessionDO extends DurableObject<Env> {
         joinedAt: tx.now,
         connected: true,
         left: false,
+        status: "",
         secretHash,
         disconnectedAt: null,
       };
@@ -271,6 +273,9 @@ export class SessionDO extends DurableObject<Env> {
     // so it never fails with stale_phase. Text from a pending actor is their move and goes to the game.
     if (action.type === "text.post" && !this.isPendingActor(userId, action.type)) {
       return this.postText(tx, p, action.text);
+    }
+    if (action.type === "set_status") {
+      return this.setStatus(tx, p, action.status);
     }
 
     if (!PLATFORM_ACTIONS.has(action.type) && p.role !== "player") return fail("observer_cannot_act");
@@ -354,6 +359,18 @@ export class SessionDO extends DurableObject<Env> {
   private postText(tx: Tx, p: Participant, raw: unknown): ActionResult {
     const text = normalizeText(raw);
     if (!text) return fail("invalid_text");
+    this.postMessage(tx, { kind: "text", userId: p.userId, name: p.name, text });
+    this.commit(tx);
+    return { ok: true };
+  }
+
+  private setStatus(tx: Tx, p: Participant, raw: unknown): ActionResult {
+    if (typeof raw !== "string") return fail("invalid_status");
+    const status = raw.trim().slice(0, STATUS_MAX_LENGTH);
+    if (status === (p.status ?? "")) return { ok: true };
+    p.status = status;
+    this.emit(tx, { type: "participant_updated", data: { userId: p.userId, changes: { status } } });
+    const text = status ? `將狀態更新為「${status}」` : "清除了狀態";
     this.postMessage(tx, { kind: "text", userId: p.userId, name: p.name, text });
     this.commit(tx);
     return { ok: true };
@@ -537,7 +554,15 @@ export class SessionDO extends DurableObject<Env> {
   }
 
   private participantView(p: Participant): ParticipantView {
-    return { userId: p.userId, name: p.name, role: p.role, joinedAt: p.joinedAt, connected: p.connected, left: p.left };
+    return {
+      userId: p.userId,
+      name: p.name,
+      role: p.role,
+      joinedAt: p.joinedAt,
+      connected: p.connected,
+      left: p.left,
+      status: p.status ?? "",
+    };
   }
 
   private snapshot(viewerId: string): SessionView {

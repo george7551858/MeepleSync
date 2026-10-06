@@ -64,12 +64,14 @@ function ParticipantDrawer({
   now,
   canChangeRole,
   onRoleChange,
+  onStatusChange,
 }: {
   view: import("../../shared/protocol").SessionView;
   meId: string;
   now: number;
   canChangeRole: boolean;
   onRoleChange: (role: import("../../shared/protocol").Role) => void;
+  onStatusChange: (status: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const me = view.participants.find((p) => p.userId === meId);
@@ -88,7 +90,7 @@ function ParticipantDrawer({
     <div className="drawer">
       <button className="drawer-toggle" onClick={() => setOpen(!open)}>
         <span>
-          <Meeple name={me?.name ?? "?"} size={16} />
+          <Meeple name={me?.name ?? "?"} size={20} />
           {" "}
           {roleLabel}
           <span className="muted"> · {total} 人在線</span>
@@ -99,7 +101,13 @@ function ParticipantDrawer({
       </button>
       {open && (
         <div className="drawer-body">
-          <ParticipantList view={view} meId={meId} canChangeRole={canChangeRole} onRoleChange={onRoleChange} />
+          <ParticipantList
+            view={view}
+            meId={meId}
+            canChangeRole={canChangeRole}
+            onRoleChange={onRoleChange}
+            onStatusChange={onStatusChange}
+          />
         </div>
       )}
     </div>
@@ -178,7 +186,7 @@ function RoomInner({ sessionId, role, navigate, identity }: Props & { identity: 
         <span className="room-title">
           <strong>{sessionId}</strong>
         </span>
-        <div className="row" style={{ gap: 4 }}>
+        <div className="row" style={{ gap: 8 }}>
           <button className="header-btn" onClick={() => navigator.clipboard.writeText(shareUrl)}>複製連結</button>
           <button className="header-btn danger-text" onClick={() => session.leave()}>離開房間</button>
         </div>
@@ -194,6 +202,7 @@ function RoomInner({ sessionId, role, navigate, identity }: Props & { identity: 
             now={now}
             canChangeRole={view.status === "lobby" && connected}
             onRoleChange={(role) => { void run({ type: "set_role", role }); }}
+            onStatusChange={(status) => { void run({ type: "set_status", status }); }}
           />
 
           {error && <p className="error" style={{ margin: "4px 0", padding: "0 12px" }}>{error}</p>}
