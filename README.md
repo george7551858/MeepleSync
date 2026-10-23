@@ -9,7 +9,7 @@ No accounts, no installs: the browser keeps a local anonymous identity, and a Cl
 - **Anonymous identity**: pick a display name and you're in. Refreshing the page or reconnecting keeps you as the same participant.
 - **Rooms with shareable links**: every room has a short ID (`/s/abcd2345`). Join as a player or as an observer.
 - **Shared text history**: everyone, including observers, can post text at any time. The last 50 messages are kept and survive refreshes.
-- **Pluggable game modes**: the host picks the mode when creating the room or later in the lobby. Current games include **Rock-Paper-Scissors (猜拳)** and **Old Maid (抽鬼牌)**. All game moves go through the shared text input box, with convenient quick-input buttons.
+- **Pluggable game modes**: the host picks the mode when creating the room or later in the lobby. Current games include **Rock-Paper-Scissors (猜拳)**, **Old Maid (抽鬼牌)**, and **Si-ba-la (十八骰仔)**. All game moves go through the shared text input box, with convenient quick-input buttons.
 - **Commit-reveal**: a move is hidden behind a SHA-256 commitment until everyone has chosen or time runs out. After the reveal, each browser checks every move against its commitment and marks it `✓`.
 - **Phases and timers**: the server drives phases with deadlines. When every required player has acted, the game advances immediately; otherwise it advances on timeout.
 - **Resilient connections**: the client reconnects automatically with backoff, replays missed events, and shows who is disconnected. A disconnected participant keeps their seat for 60 seconds.
@@ -86,6 +86,7 @@ src/
     registry.client.ts Client registry (CLIENT_GAMES)
     rps/               Rock-paper-scissors (shared.ts, server.ts, client.tsx)
     oldmaid/           Old Maid / 抽鬼牌 (shared.ts, server.ts, client.tsx)
+    sibala/            Si-ba-la / 十八骰仔 (shared.ts, server.ts, client.tsx)
   worker/
     index.ts           HTTP routes: create room, WebSocket upgrade, debug log
     session.ts         SessionDO: identity, validation, phases, broadcast, alarm

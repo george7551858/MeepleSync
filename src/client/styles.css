@@ -447,6 +447,111 @@ button.emoji {
   color: #c62828;
 }
 
+/* ── Sibala (Dice & Hand badges) ───────────── */
+
+.dice-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  vertical-align: middle;
+}
+
+.die {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.55rem;
+  line-height: 1;
+  width: 1.4em;
+  height: 1.4em;
+  border-radius: 4px;
+  user-select: none;
+  box-sizing: border-box;
+  color: #222;
+}
+
+.die-red {
+  color: #222;
+}
+
+.die-black {
+  color: #222;
+}
+
+/* Background hints for dice roles during evaluation */
+.die-role-point {
+  background: #fff8e1;
+  border: 1px solid #ffe082;
+}
+
+.die-role-pair {
+  background: #eeeeee;
+  border: 1px solid #e0e0e0;
+}
+
+.die-role-quad {
+  background: #ffecb3;
+  border: 1px solid #ffd54f;
+}
+
+.die-role-none {
+  background: #f5f5f5;
+  border: 1px solid #e0e0e0;
+}
+
+.die-role-plain {
+  background: #fafafa;
+  border: 1px solid #eee;
+}
+
+/* Hand badge with background color hint */
+.sibala-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-weight: bold;
+  font-size: 0.85em;
+  line-height: 1.5;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.sibala-badge-quad {
+  background: #ffecb3;
+  color: #8d5b00;
+  border: 1px solid #ffd54f;
+}
+
+.sibala-badge-siba {
+  background: #ffebee;
+  color: #c62828;
+  border: 1px solid #ffcdd2;
+}
+
+.sibala-badge-high {
+  background: #e8f5e9;
+  color: #1b5e20;
+  border: 1px solid #c8e6c9;
+}
+
+.sibala-badge-low {
+  background: #e3f2fd;
+  color: #0d47a1;
+  border: 1px solid #bbdefb;
+}
+
+.sibala-badge-bg {
+  background: #f5f5f5;
+  color: #616161;
+  border: 1px solid #e0e0e0;
+}
+
+.sibala-badge-none {
+  background: #fff3e0;
+  color: #e65100;
+  border: 1px solid #ffe0b2;
+}
+
 table {
   border-collapse: collapse;
 }

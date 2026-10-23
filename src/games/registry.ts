@@ -5,10 +5,12 @@
 import type { SharedGame } from "../shared/game";
 import { oldMaid } from "./oldmaid/shared";
 import { rps } from "./rps/shared";
+import { sibala } from "./sibala/shared";
 
 export const SHARED_GAMES = {
   rps,
   oldmaid: oldMaid,
+  sibala,
 } satisfies Record<string, SharedGame<never, never>>;
 
 export type GameId = keyof typeof SHARED_GAMES;
