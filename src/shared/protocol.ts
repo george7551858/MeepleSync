@@ -1,22 +1,20 @@
-import type { RpsEventBody, RpsRoundResult, RpsView } from "./games/rps";
+import type { GameId } from "../games/registry";
+import type { GameEvent, GameView, MessageSecret } from "./game";
+
+export type { GameView } from "./game";
 
 export type Role = "player" | "observer";
 export type SessionStatus = "lobby" | "playing" | "finished";
-/** `text` applies no game rules; other modes name the game the host can start. */
-export type GameMode = "text" | "rps";
-export const GAME_MODES: readonly GameMode[] = ["text", "rps"];
+/** `text` applies no game rules; other modes name the game the host can start (see `src/games/registry.ts`). */
+export type GameMode = "text" | GameId;
 
 export type MessageBody =
   | { kind: "text"; userId: string; name: string; text: string }
-  /** A submission hidden until reveal; `text` is present only for its author. */
-  | { kind: "commit"; userId: string; name: string; commitment: string; text?: string }
-  | {
-      kind: "rps_result";
-      result: RpsRoundResult;
-      names: Record<string, string>;
-      scores: Record<string, number>;
-      final: boolean;
-    };
+  /**
+   * Posted by a game and rendered by that game's client module. `data` is public;
+   * `secret` is present only for viewers listed in `secret.to`.
+   */
+  | { kind: "game"; game: string; data: unknown; secret?: MessageSecret };
 
 /** `id` equals the seq of the `text_posted` event that created it. */
 export type TextMessage = { id: number; ts: number } & MessageBody;
@@ -48,8 +46,6 @@ export interface PhaseView {
   requirement: Requirement | null;
 }
 
-export type GameView = RpsView;
-
 export interface SessionView {
   sessionId: string;
   seq: number;
@@ -76,7 +72,8 @@ export type EventBody =
   | { type: "phase_changed"; data: { phase: PhaseView } }
   | { type: "requirement_done"; data: { userId: string } }
   | { type: "game_set"; data: { game: GameView | null } }
-  | RpsEventBody;
+  /** A game-defined event, applied by the game's `SharedGame.applyEvent`. */
+  | { type: "game_event"; data: GameEvent & Record<string, unknown> };
 
 export type SessionEvent = EventBody & { seq: number; ts: number };
 
@@ -131,8 +128,4 @@ export function normalizeText(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   const text = raw.trim();
   return text && text.length <= TEXT_MAX_LENGTH ? text : null;
-}
-
-export function isGameMode(value: unknown): value is GameMode {
-  return (GAME_MODES as readonly unknown[]).includes(value);
 }

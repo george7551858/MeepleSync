@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { commitmentInput, judge, sha256Hex } from "../src/shared/games/rps";
+import { commitmentInput, judge, sha256Hex } from "../src/games/rps/shared";
 
 describe("judge", () => {
   const players = ["a", "b", "c"];

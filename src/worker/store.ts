@@ -27,7 +27,7 @@ export interface SessionState {
   lastActivity: number;
 }
 
-/** Data merged into the event payload only for the listed viewers. */
+/** Data merged (shallowly) into the event payload only for the listed viewers. */
 export interface EventSecret {
   to: string[];
   data: Record<string, unknown>;
@@ -38,7 +38,8 @@ export interface RawEvent {
   ts: number;
   type: EventBody["type"];
   data: Record<string, unknown>;
-  secret: EventSecret | null;
+  /** One entry per audience; a viewer gets the data of every entry that lists them. */
+  secret: EventSecret[] | null;
   actorId: string | null;
   actionId: string | null;
 }
@@ -48,15 +49,20 @@ export interface ActionResult {
   error?: string;
 }
 
+/** Strips a game message's secret unless the viewer is in its audience. */
 export function projectMessage(m: TextMessage, viewerId: string | null): TextMessage {
-  if (m.kind !== "commit" || m.userId === viewerId) return m;
-  const { text: _, ...hidden } = m;
+  if (m.kind !== "game" || !m.secret || (viewerId !== null && m.secret.to.includes(viewerId))) return m;
+  const { secret: _, ...hidden } = m;
   return hidden;
 }
 
 export function projectEvent(event: RawEvent, viewerId: string | null): SessionEvent {
-  const reveal = event.secret && viewerId !== null && event.secret.to.includes(viewerId);
-  const data = reveal ? { ...event.data, ...event.secret!.data } : event.data;
+  let data = event.data;
+  if (viewerId !== null) {
+    for (const secret of event.secret ?? []) {
+      if (secret.to.includes(viewerId)) data = { ...data, ...secret.data };
+    }
+  }
   return { seq: event.seq, ts: event.ts, type: event.type, data } as SessionEvent;
 }
 
@@ -76,7 +82,7 @@ function rowToEvent(row: EventRow): RawEvent {
     ts: row.ts,
     type: row.type as RawEvent["type"],
     data: JSON.parse(row.data),
-    secret: row.secret ? JSON.parse(row.secret) : null,
+    secret: row.secret ? [JSON.parse(row.secret)].flat() : null,
     actorId: row.actor_id,
     actionId: row.action_id,
   };
@@ -120,6 +126,10 @@ export class Store {
       for (const p of Object.values(state.participants)) {
         if (typeof p.status !== "string") p.status = "";
       }
+    }
+    // Message kinds from before games became plug-ins (`commit`, `rps_result`) are dropped.
+    if (Array.isArray(state.messages)) {
+      state.messages = state.messages.filter((m) => m.kind === "text" || m.kind === "game");
     }
     return state;
   }

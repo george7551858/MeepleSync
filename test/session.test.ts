@@ -1,11 +1,8 @@
-import { runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import { HAND_TEXT, verifyCommitment, type Hand } from "../src/shared/games/rps";
+import { HAND_TEXT, verifyCommitment, type Hand, type RpsCommitSecret, type RpsMessage } from "../src/games/rps/shared";
 import { CloseCode, MESSAGE_HISTORY, TEXT_MAX_LENGTH, type GameMode, type TextMessage } from "../src/shared/protocol";
-import type { SessionDO } from "../src/worker/session";
-import type { SessionState } from "../src/worker/store";
-import { TestClient, createSession, makeIdentity, sessionStub } from "./helpers";
+import { TestClient, createSession, expireAndRunAlarm, makeIdentity } from "./helpers";
 
 type Msg<K extends TextMessage["kind"]> = Extract<TextMessage, { kind: K }>;
 
@@ -13,12 +10,25 @@ function choose(client: TestClient, hand: Hand, phaseId?: number) {
   return client.act({ type: "text.post", text: HAND_TEXT[hand] }, undefined, phaseId);
 }
 
-function latestResult(client: TestClient) {
-  return client.view!.messages.filter((m): m is Msg<"rps_result"> => m.kind === "rps_result").at(-1);
+type RpsData<T extends RpsMessage["type"]> = Extract<RpsMessage, { type: T }>;
+
+function rpsMessages(client: TestClient) {
+  return client.view!.messages.filter((m): m is Msg<"game"> => m.kind === "game" && m.game === "rps");
 }
 
+function latestResult(client: TestClient) {
+  return rpsMessages(client)
+    .map((m) => m.data as RpsMessage)
+    .filter((d): d is RpsData<"result"> => d.type === "result")
+    .at(-1);
+}
+
+/** The commit message data plus its secret text (present only for its author). */
 function commitOf(client: TestClient, userId: string) {
-  return client.view!.messages.filter((m): m is Msg<"commit"> => m.kind === "commit" && m.userId === userId).at(-1);
+  const m = rpsMessages(client)
+    .filter((x) => (x.data as RpsMessage).type === "commit" && (x.data as RpsData<"commit">).userId === userId)
+    .at(-1);
+  return m && { ...(m.data as RpsData<"commit">), text: (m.secret?.data as RpsCommitSecret | undefined)?.text };
 }
 
 function texts(client: TestClient) {
@@ -33,15 +43,6 @@ async function lobbyWithTwo(mode: GameMode = "rps") {
   await bob.ready();
   await alice.waitFor(() => alice.view!.participants.length === 2);
   return { sessionId, alice, bob };
-}
-
-/** Mutate authoritative state inside the DO (e.g. move a deadline into the past), then fire the alarm. */
-async function expireAndRunAlarm(sessionId: string, mutate: (s: SessionState) => void) {
-  const stub = sessionStub(sessionId);
-  await runInDurableObject(stub, (instance: SessionDO) => {
-    mutate((instance as unknown as { state: SessionState }).state);
-  });
-  return runDurableObjectAlarm(stub);
 }
 
 describe("session lifecycle", () => {

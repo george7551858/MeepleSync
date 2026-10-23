@@ -1,4 +1,5 @@
-import { SESSION_ID_ALPHABET, SESSION_ID_PATTERN, isGameMode } from "../shared/protocol";
+import { isGameMode } from "../games/registry";
+import { SESSION_ID_ALPHABET, SESSION_ID_PATTERN } from "../shared/protocol";
 
 export { SessionDO } from "./session";
 

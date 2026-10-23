@@ -425,10 +425,26 @@ button.emoji {
   padding-top: 0.1em;
 }
 
-.rps-block {
+.game-block {
   padding: 8px 12px;
   background: #fff6db;
   border-left: 3px solid #e0a800;
+}
+
+.game-panel {
+  padding: 8px 14px;
+  background: #fff;
+  border-top: 1px solid #ddd;
+  flex-shrink: 0;
+  font-size: 0.95rem;
+}
+
+.card {
+  white-space: nowrap;
+}
+
+.card-red {
+  color: #c62828;
 }
 
 table {

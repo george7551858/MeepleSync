@@ -15,5 +15,5 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/client", "src/shared"]
+  "include": ["src/client", "src/shared", "src/games/registry.ts", "src/games/registry.client.ts", "src/games/*/shared.ts", "src/games/*/client.tsx"]
 }

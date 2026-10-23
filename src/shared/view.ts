@@ -1,4 +1,4 @@
-import { applyRpsEvent } from "./games/rps";
+import { SHARED_GAMES, isGameId } from "../games/registry";
 import { MESSAGE_HISTORY, type ParticipantView, type SessionEvent, type SessionView, type TextMessage } from "./protocol";
 
 /** Appends in place, keeping only the most recent MESSAGE_HISTORY entries. */
@@ -49,10 +49,11 @@ export function applyEvent(view: SessionView, event: SessionEvent): SessionView 
     case "game_set":
       v.game = event.data.game;
       break;
-    case "rps_round_started":
-    case "rps_revealed":
-      if (v.game?.kind === "rps") applyRpsEvent(v.game, event);
+    case "game_event": {
+      const id = event.data.game;
+      if (isGameId(id) && v.game?.kind === id) SHARED_GAMES[id].applyEvent(v.game as never, event.data as never);
       break;
+    }
   }
   return v;
 }

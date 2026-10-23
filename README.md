@@ -9,7 +9,7 @@ No accounts, no installs: the browser keeps a local anonymous identity, and a Cl
 - **Anonymous identity**: pick a display name and you're in. Refreshing the page or reconnecting keeps you as the same participant.
 - **Rooms with shareable links**: every room has a short ID (`/s/abcd2345`). Join as a player or as an observer.
 - **Shared text history**: everyone, including observers, can post text at any time. The last 50 messages are kept and survive refreshes.
-- **Rock-paper-scissors mode**: the host picks the mode when creating the room or later in the lobby. A move is just text restricted to `石頭` / `布` / `剪刀`, sent from the same input box; emoji shortcut buttons are provided.
+- **Pluggable game modes**: the host picks the mode when creating the room or later in the lobby. Current games include **Rock-Paper-Scissors (猜拳)** and **Old Maid (抽鬼牌)**. All game moves go through the shared text input box, with convenient quick-input buttons.
 - **Commit-reveal**: a move is hidden behind a SHA-256 commitment until everyone has chosen or time runs out. After the reveal, each browser checks every move against its commitment and marks it `✓`.
 - **Phases and timers**: the server drives phases with deadlines. When every required player has acted, the game advances immediately; otherwise it advances on timeout.
 - **Resilient connections**: the client reconnects automatically with backoff, replays missed events, and shows who is disconnected. A disconnected participant keeps their seat for 60 seconds.
@@ -76,23 +76,30 @@ Identity lives in `localStorage`, so every tab of the same browser is the **same
 
 ```text
 src/
-  shared/              Code used by both client and worker
-    protocol.ts        Message, event, action, and view types
-    view.ts            applyEvent(): pure reducer the client uses to apply events
-    games/rps.ts       Rock-paper-scissors rules, commitment helpers
+  shared/              Core contracts used by client, worker, and games
+    protocol.ts        Message, event, action, and session view types
+    game.ts            SharedGame, GameView, GameEvent contracts
+    view.ts            applyEvent(): reducer delegating to game modules
+  games/               Self-contained plug-and-play game modules
+    registry.ts        Shared registry (SHARED_GAMES, GAME_MODES)
+    registry.server.ts Server registry (SERVER_GAMES)
+    registry.client.ts Client registry (CLIENT_GAMES)
+    rps/               Rock-paper-scissors (shared.ts, server.ts, client.tsx)
+    oldmaid/           Old Maid / 抽鬼牌 (shared.ts, server.ts, client.tsx)
   worker/
     index.ts           HTTP routes: create room, WebSocket upgrade, debug log
     session.ts         SessionDO: identity, validation, phases, broadcast, alarm
     store.ts           SQLite persistence and per-viewer projection
+    game.ts            Server GameModule and GameContext interfaces
     config.ts          Timeouts and limits
-    games/types.ts     GameModule interface
-    games/rps.ts       Rock-paper-scissors game module
   client/
     connection.ts      WebSocket client: reconnect, resync, pending actions
+    game.ts            ClientGame and GameInput interfaces
     identity.ts        Anonymous identity in localStorage
+    labels.ts          Traditional Chinese labels and error messages
     useSession.ts      React hooks for the session and server-synced time
     pages/             Home and Room
-    components/        Text history, participant list, phase bar, scoreboard
+    components/        Chat, participant list, meeple avatars
 test/                  Unit and Durable Object integration tests
 ```
 
@@ -158,4 +165,3 @@ Tests run inside the real Workers runtime through `@cloudflare/vitest-pool-worke
 - No rate limiting on text messages.
 - Room state stored in a Durable Object has no schema migration. Rooms created before a state shape change may break; for now, create a new room.
 - Display names can only be changed from the home page. The change is applied on the next connection.
-- Old Maid (抽鬼牌) and other games are not implemented yet.

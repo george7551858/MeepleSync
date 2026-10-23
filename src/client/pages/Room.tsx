@@ -1,13 +1,14 @@
 import { useState, type ReactNode } from "react";
-import { HANDS, HAND_TEXT } from "../../shared/games/rps";
-import type { Action, GameMode, Role } from "../../shared/protocol";
+import { SHARED_GAMES, isGameId } from "../../games/registry";
+import { CLIENT_GAMES } from "../../games/registry.client";
+import type { Action, GameMode, Role, SessionView } from "../../shared/protocol";
 import type { Navigate } from "../App";
 import { ConnectionBanner } from "../components/ConnectionBanner";
 import { Meeple } from "../components/Meeple";
 import { ParticipantList } from "../components/ParticipantList";
 import { TextPanel } from "../components/TextPanel";
 import { loadIdentity, randomName, saveName, type Identity } from "../identity";
-import { HAND_EMOJI, PHASE_LABEL, errorLabel } from "../labels";
+import { errorLabel, phaseLabel } from "../labels";
 import { useServerNow, useSession } from "../useSession";
 
 interface Props {
@@ -66,11 +67,11 @@ function ParticipantDrawer({
   onRoleChange,
   onStatusChange,
 }: {
-  view: import("../../shared/protocol").SessionView;
+  view: SessionView;
   meId: string;
   now: number;
   canChangeRole: boolean;
-  onRoleChange: (role: import("../../shared/protocol").Role) => void;
+  onRoleChange: (role: Role) => void;
   onStatusChange: (status: string) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -82,9 +83,6 @@ function ParticipantDrawer({
 
   const { phase } = view;
   const remaining = phase.deadline === null ? null : Math.max(0, Math.ceil((phase.deadline - now) / 1000));
-  const phaseLabel = view.status === "lobby" && view.mode === "text"
-    ? "任意文字"
-    : (PHASE_LABEL[phase.name] ?? phase.name);
 
   return (
     <div className="drawer">
@@ -95,7 +93,7 @@ function ParticipantDrawer({
           {roleLabel}
           <span className="muted"> · {total} 人在線</span>
           {remaining !== null && <span className="muted"> · 剩餘 {remaining}s</span>}
-          <span className="muted"> · {phaseLabel}</span>
+          <span className="muted"> · {phaseLabel(view)}</span>
         </span>
         <span className="drawer-arrow">{open ? "▲" : "▼"}</span>
       </button>
@@ -150,11 +148,16 @@ function RoomInner({ sessionId, role, navigate, identity }: Props & { identity: 
   const isHost = !!view && view.hostId === identity.userId;
   const connected = session.status === "open";
   const req = view?.phase.requirement;
-  const mustChoose =
-    view?.game?.kind === "rps" &&
+  const pending =
+    view?.status === "playing" &&
     req?.actionType === "text.post" &&
     req.actors.includes(identity.userId) &&
     !req.done.includes(identity.userId);
+  const gameKind = view?.game?.kind;
+  const clientGame = isGameId(gameKind) ? CLIENT_GAMES[gameKind] : null;
+  const input = pending && view && clientGame?.input ? clientGame.input(view, identity.userId) : null;
+  const GamePanel = view?.status === "playing" ? clientGame?.Panel : undefined;
+  const minPlayers = view && isGameId(view.mode) ? SHARED_GAMES[view.mode].minPlayers : 2;
   const shareUrl = `${window.location.origin}/s/${sessionId}`;
 
   const run = async (action: Action) => {
@@ -212,13 +215,14 @@ function RoomInner({ sessionId, role, navigate, identity }: Props & { identity: 
             messages={view.messages}
             meId={identity.userId}
             disabled={!connected || !me || me.left}
-            options={mustChoose ? HANDS.map((h) => ({ text: HAND_TEXT[h], label: `${HAND_EMOJI[h]} ${HAND_TEXT[h]}` })) : null}
+            input={input}
+            panel={GamePanel ? <GamePanel view={view} meId={identity.userId} /> : null}
             onPost={(text) => run({ type: "text.post", text })}
             mode={view.mode}
             canChangeMode={isHost && inLobbyOrFinished && connected}
             onModeChange={(m: GameMode) => { void handleModeChange(m); }}
             showStart={showStart}
-            startDisabled={playerCount < 2}
+            startDisabled={playerCount < minPlayers}
             onStart={() => { void handleStart(); }}
           />
         </>

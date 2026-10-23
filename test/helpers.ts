@@ -1,3 +1,4 @@
+import { runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
 import type {
   Action,
@@ -9,6 +10,8 @@ import type {
   SessionView,
 } from "../src/shared/protocol";
 import { applyEvent } from "../src/shared/view";
+import type { SessionDO } from "../src/worker/session";
+import type { SessionState } from "../src/worker/store";
 
 export async function createSession(mode: GameMode = "rps"): Promise<string> {
   const res = await exports.default.fetch("http://test/api/sessions", { method: "POST", body: JSON.stringify({ mode }) });
@@ -18,6 +21,15 @@ export async function createSession(mode: GameMode = "rps"): Promise<string> {
 
 export function sessionStub(sessionId: string) {
   return env.SESSION.get(env.SESSION.idFromName(sessionId));
+}
+
+/** Mutate authoritative state inside the DO (e.g. move a deadline into the past), then fire the alarm. */
+export async function expireAndRunAlarm(sessionId: string, mutate: (s: SessionState) => void) {
+  const stub = sessionStub(sessionId);
+  await runInDurableObject(stub, (instance: SessionDO) => {
+    mutate((instance as unknown as { state: SessionState }).state);
+  });
+  return runDurableObjectAlarm(stub);
 }
 
 let counter = 0;

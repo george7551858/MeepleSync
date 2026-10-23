@@ -96,14 +96,21 @@ Notes for anyone (human or agent) changing this repo. Read `README.md` first for
 
 ## Adding a new game
 
-1. Add a mode to `GameMode` / `GAME_MODES` in `src/shared/protocol.ts`, plus a label in `MODE_LABEL`.
-2. Put shared rules and types in `src/shared/games/<game>.ts`. Add its events to `EventBody` and handle them in `applyEvent`.
-3. Implement `GameModule` in `src/worker/games/<game>.ts` and register it in `GAMES` in `session.ts`.
-   - Moves are `text.post` with a phase `requirement` whose `actionType` is `"text.post"`.
-   - Validate the text in `onAction`.
-   - Publish results to the history with `ctx.post()`.
-4. Hidden submissions use a `commit` message. The server hashes `commitmentInput(...)` with `node:crypto`, and the client verifies the hash after the reveal.
-5. Write tests:
+Games are self-contained plug-ins under `src/games/<game>/`. The core server and client code do not have game-specific logic or imports.
+
+1. Create `src/games/<game>/`:
+   - `shared.ts`: implements `SharedGame` (id, minPlayers, `applyEvent`), plus rules and view types.
+   - `server.ts`: implements `GameModule` (`create`, `begin`, `onAction`, `onPhaseEnd`, `project`).
+     - Moves are `text.post` with a phase `requirement` whose `actionType` is `"text.post"`.
+     - Validate text in `onAction`. Return an error code without emitting anything on invalid input.
+     - Emit game events via `ctx.emit(...)` and post results to history via `ctx.post(...)`.
+   - `client.tsx`: implements `ClientGame` (`label`, `phaseLabels`, `Message`, plus optional `input`, `Panel`, `errorLabels`).
+     - Do not bypass the text box: `input` provides shortcut `options` that submit the same text a user could type.
+2. Register the module in:
+   - `src/games/registry.ts` (`SHARED_GAMES`)
+   - `src/games/registry.server.ts` (`SERVER_GAMES`)
+   - `src/games/registry.client.ts` (`CLIENT_GAMES`)
+3. Write tests in `test/<game>.test.ts`:
    - the full game flow
    - timeouts
    - observers cannot act

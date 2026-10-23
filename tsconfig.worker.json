@@ -15,5 +15,5 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/worker", "src/shared", "test", "worker-configuration.d.ts"]
+  "include": ["src/worker", "src/shared", "src/games/registry.ts", "src/games/registry.server.ts", "src/games/*/shared.ts", "src/games/*/server.ts", "test", "worker-configuration.d.ts"]
 }

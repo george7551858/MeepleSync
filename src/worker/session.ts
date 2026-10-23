@@ -5,7 +5,6 @@ import {
   PING,
   PONG,
   STATUS_MAX_LENGTH,
-  isGameMode,
   normalizeName,
   normalizeText,
   type Action,
@@ -20,6 +19,8 @@ import {
   type TextMessage,
 } from "../shared/protocol";
 import { pushMessage, sortParticipants } from "../shared/view";
+import { SHARED_GAMES, isGameId, isGameMode } from "../games/registry";
+import { SERVER_GAMES } from "../games/registry.server";
 import {
   ACTION_CACHE_MS,
   DISCONNECT_GRACE_MS,
@@ -29,8 +30,7 @@ import {
   MAX_PARTICIPANTS,
   MAX_PLAYERS,
 } from "./config";
-import { rps } from "./games/rps";
-import type { GameContext, GameModule, PhaseOptions } from "./games/types";
+import type { GameContext, GameModule, PhaseOptions } from "./game";
 import {
   Store,
   projectEvent,
@@ -42,7 +42,6 @@ import {
   type SessionState,
 } from "./store";
 
-const GAMES: Record<string, GameModule<any>> = { [rps.kind]: rps };
 const PLATFORM_ACTIONS = new Set(["start", "restart", "set_role", "set_mode", "set_status", "text.post"]);
 const HOST_ACTIONS = new Set(["start", "restart", "set_mode"]);
 
@@ -168,7 +167,7 @@ export class SessionDO extends DurableObject<Env> {
     const tx = new Tx(now, null, null);
 
     if (s.phase.deadline !== null && now >= s.phase.deadline && s.game) {
-      GAMES[s.game.kind].onPhaseEnd(this.gameContext(tx), s.game.state, s.phase.name);
+      this.runningGame()?.onPhaseEnd(this.gameContext(tx), s.game.state, s.phase.name);
       this.checkRequirement(tx);
     }
 
@@ -303,12 +302,12 @@ export class SessionDO extends DurableObject<Env> {
       }
       case "start": {
         if (s.status !== "lobby") return fail("not_allowed_now");
-        const game = GAMES[s.mode];
-        if (!game) return fail("no_game");
+        if (!isGameId(s.mode)) return fail("no_game");
+        const game = SERVER_GAMES[s.mode];
         const players = this.activePlayers();
-        if (players.length < game.minPlayers) return fail("not_enough_players");
+        if (players.length < SHARED_GAMES[s.mode].minPlayers) return fail("not_enough_players");
         const gameState = game.create(players);
-        s.game = { kind: game.kind, state: gameState };
+        s.game = { kind: s.mode, state: gameState };
         s.status = "playing";
         this.emit(tx, { type: "status_changed", data: { status: "playing" } });
         this.emit(tx, { type: "game_set", data: { game: game.project(gameState, null) } });
@@ -333,7 +332,9 @@ export class SessionDO extends DurableObject<Env> {
         if (s.status !== "playing" || !s.game || !req || req.actionType !== action.type) return fail("not_allowed_now");
         if (!req.actors.includes(userId)) return fail("not_your_turn");
         if (req.done.includes(userId)) return fail("already_done");
-        const error = GAMES[s.game.kind].onAction(this.gameContext(tx), s.game.state, userId, action);
+        const game = this.runningGame();
+        if (!game) return fail("not_allowed_now");
+        const error = game.onAction(this.gameContext(tx), s.game.state, userId, action);
         if (error) return fail(error);
         req.done.push(userId);
         this.emit(tx, { type: "requirement_done", data: { userId } });
@@ -380,8 +381,8 @@ export class SessionDO extends DurableObject<Env> {
     const s = this.state!;
     const message: TextMessage = { id: s.seq + 1, ts: tx.now, ...body };
     pushMessage(s.messages, message);
-    const secret = message.kind === "commit" ? { to: [message.userId], data: { message } } : undefined;
-    this.emit(tx, { type: "text_posted", data: { message: projectMessage(message, null) } }, secret);
+    const secrets = message.kind === "game" && message.secret ? [{ to: message.secret.to, data: { message } }] : undefined;
+    this.emit(tx, { type: "text_posted", data: { message: projectMessage(message, null) } }, secrets);
   }
 
   private onLeave(ws: WebSocket, userId: string): void {
@@ -413,14 +414,14 @@ export class SessionDO extends DurableObject<Env> {
 
   // ---------------------------------------------------------------- Transitions
 
-  private emit(tx: Tx, body: EventBody, secret?: EventSecret): void {
+  private emit(tx: Tx, body: EventBody, secrets?: EventSecret[]): void {
     const s = this.state!;
     const event: RawEvent = {
       seq: ++s.seq,
       ts: tx.now,
       type: body.type,
       data: body.data as Record<string, unknown>,
-      secret: secret ?? null,
+      secret: secrets?.length ? secrets : null,
       actorId: tx.actorId,
       actionId: tx.actionId,
     };
@@ -461,7 +462,7 @@ export class SessionDO extends DurableObject<Env> {
       const req = phase.requirement;
       if (s.status !== "playing" || !s.game || !req) return;
       if (!req.actors.every((a) => req.done.includes(a))) return;
-      GAMES[s.game.kind].onPhaseEnd(this.gameContext(tx), s.game.state, phase.name);
+      this.runningGame()?.onPhaseEnd(this.gameContext(tx), s.game.state, phase.name);
       if (s.phase.id === phase.id) return;
     }
   }
@@ -512,12 +513,19 @@ export class SessionDO extends DurableObject<Env> {
     this.emit(tx, { type: "host_changed", data: { hostId } });
   }
 
+  /** The module of the game in progress, or null when there is none (or it is no longer registered). */
+  private runningGame(): GameModule<unknown> | null {
+    const kind = this.state!.game?.kind;
+    return isGameId(kind) ? SERVER_GAMES[kind] : null;
+  }
+
   private gameContext(tx: Tx): GameContext {
+    const kind = this.state!.game!.kind;
     return {
       now: tx.now,
       sessionId: this.state!.sessionId,
-      emit: (body, secret) => this.emit(tx, body, secret),
-      post: (message) => this.postMessage(tx, message),
+      emit: (event, secrets) => this.emit(tx, { type: "game_event", data: { ...event, game: kind } }, secrets),
+      post: (data, secret) => this.postMessage(tx, { kind: "game", game: kind, data, ...(secret ? { secret } : {}) }),
       nameOf: (userId) => this.state!.participants[userId]?.name ?? "",
       setPhase: (name, options) => this.setPhase(tx, name, options),
       activePlayers: () => this.activePlayers(),
@@ -575,7 +583,7 @@ export class SessionDO extends DurableObject<Env> {
       hostId: s.hostId,
       participants: sortParticipants(Object.values(s.participants).map((p) => this.participantView(p))),
       phase: structuredClone(s.phase),
-      game: s.game ? GAMES[s.game.kind].project(s.game.state, viewerId) : null,
+      game: s.game ? (this.runningGame()?.project(s.game.state, viewerId) ?? null) : null,
       messages: s.messages.map((m) => structuredClone(projectMessage(m, viewerId))),
     };
   }

@@ -1,17 +1,20 @@
-import { useEffect, useRef, useState } from "react";
-import { parseHand } from "../../shared/games/rps";
-import { GAME_MODES, TEXT_MAX_LENGTH, type GameMode, type TextMessage } from "../../shared/protocol";
-import { HAND_EMOJI, MODE_LABEL } from "../labels";
-import { Meeple } from "./Meeple";
-import { RpsResultMessage } from "./RpsPanel";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { GAME_MODES, isGameId } from "../../games/registry";
+import { CLIENT_GAMES } from "../../games/registry.client";
+import { TEXT_MAX_LENGTH, type GameMode, type TextMessage } from "../../shared/protocol";
+import type { GameInput } from "../game";
+import { MODE_LABEL } from "../labels";
+import { Author } from "./Author";
 
 interface Props {
   sessionId: string;
   messages: TextMessage[];
   meId: string;
   disabled: boolean;
-  /** When set, the current phase is waiting on me and only these texts are accepted. */
-  options: { text: string; label: string }[] | null;
+  /** When set, the current phase is waiting on me and only `input.options` texts are accepted. */
+  input: GameInput | null;
+  /** Game status shown above the input (the game's `Panel`), if any. */
+  panel: ReactNode;
   onPost: (text: string) => Promise<boolean>;
 
   /** Current room mode. */
@@ -32,27 +35,16 @@ function formatTime(ts: number): string {
 }
 
 function Message({ sessionId, m, meId }: { sessionId: string; m: TextMessage; meId: string }) {
-  if (m.kind === "rps_result") return <RpsResultMessage sessionId={sessionId} message={m} />;
-  const who = (
-    <span className="msg-author">
-      <Meeple name={m.name} size={18} /> <strong>{m.userId === meId ? `${m.name}（你）` : m.name}</strong>
-    </span>
-  );
   if (m.kind === "text") {
     return (
       <>
-        {who}：{m.text}
+        <Author name={m.name} isMe={m.userId === meId} />：{m.text}
       </>
     );
   }
-  const hand = m.text ? parseHand(m.text) : null;
-  const handDisplay = hand ? `${HAND_EMOJI[hand]} ${m.text}` : m.text;
-  return (
-    <>
-      {who}：已出招
-      {m.text && `（你出了 ${handDisplay}，已鎖定）`}
-    </>
-  );
+  if (m.kind !== "game" || !isGameId(m.game)) return <span className="muted">（無法顯示的訊息）</span>;
+  const GameMessage = CLIENT_GAMES[m.game].Message;
+  return <GameMessage message={m} meId={meId} sessionId={sessionId} />;
 }
 
 /* ── Mode picker (left of input) ───────────────────── */
@@ -109,7 +101,8 @@ export function TextPanel({
   messages,
   meId,
   disabled,
-  options,
+  input,
+  panel,
   onPost,
   mode,
   canChangeMode,
@@ -121,6 +114,7 @@ export function TextPanel({
   const [text, setText] = useState("");
   const listRef = useRef<HTMLUListElement>(null);
   const lastId = messages.at(-1)?.id;
+  const options = input?.options;
   const allowed = options?.map((o) => o.text);
   const valid = allowed ? allowed.includes(text.trim()) : !!text.trim();
 
@@ -148,7 +142,7 @@ export function TextPanel({
           {messages.map((m) => (
             <li key={m.id}>
               <time className="time">{formatTime(m.ts)}</time>
-              <div className={m.kind === "text" ? undefined : "rps-block"}>
+              <div className={m.kind === "text" ? undefined : "game-block"}>
                 <Message sessionId={sessionId} m={m} meId={meId} />
               </div>
             </li>
@@ -159,7 +153,8 @@ export function TextPanel({
           <span className="muted">還沒有人輸入文字</span>
         </div>
       )}
-      {allowed && <p className="chat-hint">出拳中：只能輸入 {allowed.join("、")}，送出後無法修改</p>}
+      {panel}
+      {input && <p className="chat-hint">{input.hint}</p>}
       {options && (
         <div className="row quick">
           {options.map((o) => (
@@ -191,7 +186,7 @@ export function TextPanel({
               className="grow"
               value={text}
               maxLength={TEXT_MAX_LENGTH}
-              placeholder={allowed ? `輸入 ${allowed.join("、")}` : "輸入訊息…"}
+              placeholder={input ? input.placeholder : "輸入訊息…"}
               onChange={(e) => setText(e.target.value)}
             />
             <button className="primary" type="submit" disabled={disabled || !valid}>

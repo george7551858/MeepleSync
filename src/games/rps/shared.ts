@@ -1,3 +1,6 @@
+import type { SharedGame } from "../../shared/game";
+import type { SessionView } from "../../shared/protocol";
+
 export const HANDS = ["rock", "paper", "scissors"] as const;
 export type Hand = (typeof HANDS)[number];
 
@@ -37,9 +40,29 @@ export interface RpsView {
   scores: Record<string, number>;
 }
 
-export type RpsEventBody =
-  | { type: "rps_round_started"; data: { round: number } }
-  | { type: "rps_revealed"; data: { scores: Record<string, number> } };
+export type RpsEvent =
+  | { game: "rps"; event: "round_started"; round: number }
+  | { game: "rps"; event: "revealed"; scores: Record<string, number> };
+
+/** `data` of the game messages rps posts into the text history. */
+export type RpsMessage =
+  /** A hidden pick. The chosen text is in the message secret, visible only to its author. */
+  | { type: "commit"; userId: string; name: string; commitment: string }
+  | {
+      type: "result";
+      result: RpsRoundResult;
+      names: Record<string, string>;
+      scores: Record<string, number>;
+      final: boolean;
+    };
+
+export interface RpsCommitSecret {
+  text: string;
+}
+
+export function rpsView(view: SessionView): RpsView | null {
+  return view.game?.kind === "rps" ? (view.game as RpsView) : null;
+}
 
 /**
  * Players who did not choose lose the round. Among those who chose:
@@ -87,13 +110,17 @@ export async function verifyCommitment(
   return (await sha256Hex(commitmentInput(sessionId, round, userId, pick.choice, pick.nonce))) === commitment;
 }
 
-export function applyRpsEvent(game: RpsView, event: RpsEventBody): void {
-  switch (event.type) {
-    case "rps_round_started":
-      game.round = event.data.round;
-      break;
-    case "rps_revealed":
-      game.scores = event.data.scores;
-      break;
-  }
-}
+export const rps: SharedGame<RpsView, RpsEvent> = {
+  id: "rps",
+  minPlayers: 2,
+  applyEvent(game, event) {
+    switch (event.event) {
+      case "round_started":
+        game.round = event.round;
+        break;
+      case "revealed":
+        game.scores = event.scores;
+        break;
+    }
+  },
+};
