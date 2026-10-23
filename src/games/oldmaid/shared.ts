@@ -28,16 +28,6 @@ export function suitOf(card: Card): string {
   return card === JOKER ? "" : card.slice(-1);
 }
 
-function cardOrder(card: Card): number {
-  if (card === JOKER) return 1000;
-  return RANKS.indexOf(rankOf(card) as (typeof RANKS)[number]) * 10 + SUITS.indexOf(suitOf(card) as (typeof SUITS)[number]);
-}
-
-/** The order a player sees their own hand in. The server keeps the face-down order separately. */
-export function sortHand(cards: Card[]): Card[] {
-  return [...cards].sort((a, b) => cardOrder(a) - cardOrder(b));
-}
-
 export function cardLabel(card: Card): string {
   return card === JOKER ? "🃏鬼牌" : `${SUIT_SYMBOL[suitOf(card)]}${rankOf(card)}`;
 }
@@ -56,7 +46,7 @@ export interface OldMaidView {
   /** Seat order; each player draws from the next player who still holds cards. */
   players: string[];
   counts: Record<string, number>;
-  /** The viewer's own hand, sorted. null for viewers who are not in the game. */
+  /** The viewer's own hand, in the exact 1..N order opponents draw from. null for non-players. */
   myHand: Card[] | null;
   turn: number;
   drawer: string | null;

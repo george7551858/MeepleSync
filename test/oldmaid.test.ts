@@ -126,10 +126,13 @@ describe("old maid", () => {
       expect(handEvents.map((e) => (e.data as unknown as { hand: string[] }).hand)).toEqual([hands[i]]);
     }
 
-    // First turn: Alice draws from Bob. Dave and Carol must not learn which card moved.
+    // First turn: Alice draws from Bob. The chosen number matches the exact position shown in Bob's hand,
+    // and Dave and Carol must not learn which card moved.
     expect(game(dave).drawer).toBe(alice.identity.userId);
     expect(game(dave).target).toBe(bob.identity.userId);
-    expect(await alice.act({ type: "text.post", text: "1" })).toMatchObject({ ok: true });
+    const bobHandBefore = [...game(bob).myHand!];
+    const pickIndex = Math.min(2, bobHandBefore.length);
+    expect(await alice.act({ type: "text.post", text: String(pickIndex) })).toMatchObject({ ok: true });
     for (const c of all) await c.waitFor(() => messagesOfType(c, "drew").length === 1);
     await settle(all);
     for (const outsider of [dave, carol]) {
@@ -140,8 +143,9 @@ describe("old maid", () => {
     }
     for (const insider of [alice, bob]) {
       const secret = messagesOfType(insider, "drew")[0].secret?.data as OldMaidDrewSecret;
-      expect(secret.card).toBeTruthy();
+      expect(secret.card).toBe(bobHandBefore[pickIndex - 1]);
     }
+    expect(game(bob).myHand).toEqual(bobHandBefore.filter((_, i) => i !== pickIndex - 1));
     for (const c of all) expect(c.view).toEqual(await c.syncFresh());
   });
 

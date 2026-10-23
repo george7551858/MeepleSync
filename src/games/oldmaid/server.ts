@@ -5,7 +5,6 @@ import {
   fullDeck,
   parseDrawIndex,
   rankOf,
-  sortHand,
   type Card,
   type OldMaidEvent,
   type OldMaidMessage,
@@ -19,7 +18,7 @@ export const DRAW_ACTION = "text.post";
 
 export interface OldMaidState {
   players: string[];
-  /** Face-down order. The hand being drawn from is reshuffled at the start of every turn. */
+  /** Each player's hand in its 1..N order (the same order the owner sees on screen). */
   hands: Record<string, Card[]>;
   out: string[];
   turn: number;
@@ -93,15 +92,15 @@ function draw(ctx: Ctx, s: OldMaidState, position: number, auto: boolean): void 
     pair = [hand[match], card];
     hand.splice(match, 1);
   } else {
-    hand.push(card);
+    hand.splice(randomInt(hand.length + 1), 0, card);
   }
   s.drawn = true;
   const newlyOut = [target, drawer].filter((p) => s.hands[p].length === 0 && !s.out.includes(p));
   s.out.push(...newlyOut);
 
   ctx.emit({ game: "oldmaid", event: "drew", counts: counts(s), out: [...s.out] }, [
-    { to: [drawer], data: { hand: sortHand(s.hands[drawer]) } },
-    { to: [target], data: { hand: sortHand(s.hands[target]) } },
+    { to: [drawer], data: { hand: [...s.hands[drawer]] } },
+    { to: [target], data: { hand: [...s.hands[target]] } },
   ]);
   ctx.post(
     { type: "drew", drawer, target, index: position + 1, pair, out: newlyOut, auto, names: namesOf(ctx, [drawer, target]) },
@@ -134,7 +133,6 @@ function nextTurn(ctx: Ctx, s: OldMaidState, previous: string): void {
     s.drawer = drawer;
     s.target = target;
     s.drawn = false;
-    shuffle(s.hands[target]);
     ctx.emit({ game: "oldmaid", event: "turn", turn: s.turn, drawer, target });
     if (active.has(drawer)) {
       ctx.setPhase("drawing", { durationMs: DRAW_MS, requirement: { actionType: DRAW_ACTION, actors: [drawer] } });
@@ -166,14 +164,14 @@ export const oldMaidServer: GameModule<OldMaidState, OldMaidEvent, OldMaidMessag
     const pairs: Record<string, number> = {};
     for (const p of s.players) {
       const result = discardPairs(s.hands[p]);
-      s.hands[p] = result.kept;
+      s.hands[p] = shuffle(result.kept);
       pairs[p] = result.pairs.length;
     }
     s.out = s.players.filter((p) => s.hands[p].length === 0);
 
     ctx.emit(
       { game: "oldmaid", event: "dealt", counts: counts(s) },
-      s.players.map((p) => ({ to: [p], data: { hand: sortHand(s.hands[p]) } })),
+      s.players.map((p) => ({ to: [p], data: { hand: [...s.hands[p]] } })),
     );
     ctx.post({ type: "dealt", names: namesOf(ctx, s.players), pairs, counts: counts(s) });
     // The first player in seat order draws first.
@@ -201,7 +199,7 @@ export const oldMaidServer: GameModule<OldMaidState, OldMaidEvent, OldMaidMessag
       kind: "oldmaid",
       players: [...s.players],
       counts: counts(s),
-      myHand: viewerId !== null && s.hands[viewerId] ? sortHand(s.hands[viewerId]) : null,
+      myHand: viewerId !== null && s.hands[viewerId] ? [...s.hands[viewerId]] : null,
       turn: s.turn,
       drawer: s.drawer,
       target: s.target,
