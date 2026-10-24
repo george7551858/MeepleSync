@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { parseParticipantName } from "../../shared/protocol";
 import type { Navigate } from "../App";
 import { Meeple } from "../components/Meeple";
 import { loadIdentity, randomName, saveName } from "../identity";
@@ -13,7 +14,9 @@ export function Home({ navigate }: { navigate: Navigate }) {
   const [error, setError] = useState<string | null>(null);
 
   /** The name that will actually be used (input or placeholder). */
-  const displayName = name.trim() || placeholder;
+  const trimmed = name.trim();
+  const displayName = trimmed.startsWith("+") ? `${placeholder}${trimmed}` : trimmed || placeholder;
+  const previewName = parseParticipantName(displayName).name ?? placeholder;
 
   const ensureName = () => {
     const saved = saveName(displayName);
@@ -50,7 +53,7 @@ export function Home({ navigate }: { navigate: Navigate }) {
       <p className="muted">免註冊的多人即時房間。建立房間後把連結分享給朋友即可。</p>
 
       <div className="avatar-preview">
-        <Meeple name={displayName} size={48} />
+        <Meeple name={previewName} size={48} />
       </div>
 
       <label className="field-label">顯示名稱</label>

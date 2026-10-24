@@ -2,6 +2,7 @@ import { randomInt } from "node:crypto";
 import type { GameContext, GameModule } from "../../worker/game";
 import {
   DICE_FACES,
+  ROLL_TEXT,
   evaluateDice,
   isRollText,
   judgeSibala,
@@ -156,5 +157,10 @@ export const sibalaServer: GameModule<SibalaState, SibalaEvent, SibalaMessage> =
       winners: [...s.winners],
       draw: s.draw,
     };
+  },
+
+  botAction(s, userId) {
+    if (s.rolled || userId !== s.roller) return null;
+    return { type: ROLL_ACTION, text: ROLL_TEXT };
   },
 };

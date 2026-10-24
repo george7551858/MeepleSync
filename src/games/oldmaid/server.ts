@@ -207,4 +207,11 @@ export const oldMaidServer: GameModule<OldMaidState, OldMaidEvent, OldMaidMessag
       loser: s.loser,
     };
   },
+
+  botAction(s, userId) {
+    if (s.drawn || userId !== s.drawer || !s.target) return null;
+    const count = s.hands[s.target]?.length ?? 0;
+    if (count <= 0) return null;
+    return { type: DRAW_ACTION, text: String(randomInt(count) + 1) };
+  },
 };

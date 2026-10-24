@@ -470,3 +470,64 @@ describe("player status", () => {
   });
 });
 
+describe("test mode with virtual participants (+N)", () => {
+  it("spawns N virtual participants when the room creator joins with Name+N", async () => {
+    const sessionId = await createSession("rps");
+    const alice = await TestClient.connect(sessionId, makeIdentity("小明+3"));
+    await alice.ready();
+
+    expect(alice.view!.participants.map((p) => p.name)).toEqual(["小明", "機器人 1", "機器人 2", "機器人 3"]);
+    expect(alice.view!.hostId).toBe(alice.identity.userId);
+
+    // Subsequent joiners with +N do not spawn more bots, and their name is stripped
+    const bob = await TestClient.connect(sessionId, makeIdentity("小華+2"));
+    await bob.ready();
+    await alice.waitFor(() => alice.view!.participants.length === 5);
+    expect(alice.view!.participants.map((p) => p.name)).toEqual(["小明", "機器人 1", "機器人 2", "機器人 3", "小華"]);
+    expect(bob.view).toEqual(await bob.syncFresh());
+  });
+
+  it("auto-plays rps, sibala, and oldmaid with virtual participants", async () => {
+    const sessionId = await createSession("rps");
+    const alice = await TestClient.connect(sessionId, makeIdentity("小明+2"));
+    await alice.ready();
+
+    // RPS: bots commit immediately when started; round reveals as soon as Alice chooses
+    expect(await alice.act({ type: "start" })).toMatchObject({ ok: true });
+    await alice.waitFor(() => alice.view!.phase.name === "choosing");
+    expect(alice.view!.phase.requirement?.done).toEqual(["bot-1", "bot-2"]);
+    expect(await choose(alice, "rock")).toMatchObject({ ok: true });
+    await alice.waitFor(() => alice.view!.phase.name === "revealed");
+    expect(latestResult(alice)).toBeDefined();
+    expect(alice.view).toEqual(await alice.syncFresh());
+  });
+
+  it("completes a full sibala game with virtual participants", async () => {
+    const sessionId = await createSession("sibala");
+    const alice = await TestClient.connect(sessionId, makeIdentity("+2"));
+    await alice.ready();
+    expect(alice.view!.participants.map((p) => p.name)).toEqual(["玩家", "機器人 1", "機器人 2"]);
+
+    expect(await alice.act({ type: "start" })).toMatchObject({ ok: true });
+    for (let guard = 0; guard < 10 && alice.view!.status === "playing"; guard++) {
+      await alice.act({ type: "text.post", text: "擲骰" });
+    }
+    expect(alice.view!.status).toBe("finished");
+    expect(alice.view).toEqual(await alice.syncFresh());
+  });
+
+  it("completes a full oldmaid game with virtual participants", async () => {
+    const sessionId = await createSession("oldmaid");
+    const alice = await TestClient.connect(sessionId, makeIdentity("小明+2"));
+    await alice.ready();
+
+    expect(await alice.act({ type: "start" })).toMatchObject({ ok: true });
+    for (let guard = 0; guard < 40 && alice.view!.status === "playing"; guard++) {
+      expect(await alice.act({ type: "text.post", text: "1" })).toMatchObject({ ok: true });
+    }
+    expect(alice.view!.status).toBe("finished");
+    expect(alice.view).toEqual(await alice.syncFresh());
+  });
+});
+
+

@@ -45,4 +45,6 @@ export interface GameModule<S = unknown, E extends GameEvent = GameEvent, M = un
   onPhaseEnd(ctx: GameContext<E, M>, state: S, phaseName: string): void;
   /** The game view for `viewerId` (null = public). Must equal the result of replaying events. */
   project(state: S, viewerId: string | null): GameView;
+  /** Valid action for a virtual participant (`bot-*`) when the current phase is waiting on `userId`. */
+  botAction?(state: S, userId: string): Action | null;
 }

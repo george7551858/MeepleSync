@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { GAME_MODES, isGameId } from "../../games/registry";
+import { GAME_MODES, SHARED_GAMES, isGameId, type GameId } from "../../games/registry";
 import { CLIENT_GAMES } from "../../games/registry.client";
 import { TEXT_MAX_LENGTH, type GameMode, type TextMessage } from "../../shared/protocol";
 import type { GameInput } from "../game";
 import { MODE_LABEL } from "../labels";
 import { Author } from "./Author";
+
+const GAME_IDS = Object.keys(SHARED_GAMES) as GameId[];
 
 interface Props {
   sessionId: string;
@@ -151,6 +153,19 @@ export function TextPanel({
       ) : (
         <div className="messages-empty">
           <span className="muted">還沒有人輸入文字</span>
+          <div className="row empty-actions">
+            {GAME_IDS.map((g) => (
+              <button
+                key={g}
+                type="button"
+                className={mode === g ? "primary" : ""}
+                disabled={!canChangeMode}
+                onClick={() => onModeChange(g)}
+              >
+                {MODE_LABEL[g]}
+              </button>
+            ))}
+          </div>
         </div>
       )}
       {panel}

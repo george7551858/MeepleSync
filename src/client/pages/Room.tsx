@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { SHARED_GAMES, isGameId } from "../../games/registry";
 import { CLIENT_GAMES } from "../../games/registry.client";
-import type { Action, GameMode, Role, SessionView } from "../../shared/protocol";
+import { parseParticipantName, type Action, type GameMode, type Role, type SessionView } from "../../shared/protocol";
 import type { Navigate } from "../App";
 import { ConnectionBanner } from "../components/ConnectionBanner";
 import { Meeple } from "../components/Meeple";
@@ -23,12 +23,14 @@ export function Room(props: Props) {
   const [name, setName] = useState("");
   const [placeholder] = useState(randomName);
   if (identity.name) return <RoomInner {...props} identity={identity} />;
-  const displayName = name.trim() || placeholder;
+  const trimmed = name.trim();
+  const displayName = trimmed.startsWith("+") ? `${placeholder}${trimmed}` : trimmed || placeholder;
+  const previewName = parseParticipantName(displayName).name ?? placeholder;
   return (
     <main className="home">
       <h1>加入房間 {props.sessionId}</h1>
       <div className="avatar-preview">
-        <Meeple name={displayName} size={48} />
+        <Meeple name={previewName} size={48} />
       </div>
       <form
         className="row"

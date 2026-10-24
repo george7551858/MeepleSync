@@ -5,8 +5,8 @@ import {
   PING,
   PONG,
   STATUS_MAX_LENGTH,
-  normalizeName,
   normalizeText,
+  parseParticipantName,
   type Action,
   type ClientMessage,
   type EventBody,
@@ -44,6 +44,11 @@ import {
 
 const PLATFORM_ACTIONS = new Set(["start", "restart", "set_role", "set_mode", "set_status", "text.post"]);
 const HOST_ACTIONS = new Set(["start", "restart", "set_mode"]);
+const BOT_ID_PREFIX = "bot-";
+
+function isBotId(userId: string): boolean {
+  return userId.startsWith(BOT_ID_PREFIX);
+}
 
 interface Attachment {
   userId: string | null;
@@ -193,8 +198,8 @@ export class SessionDO extends DurableObject<Env> {
 
   private onHello(ws: WebSocket, msg: Extract<ClientMessage, { t: "hello" }>): void {
     const s = this.state!;
-    const name = normalizeName(msg.name);
-    const validId = typeof msg.userId === "string" && /^[\w-]{8,64}$/.test(msg.userId);
+    const { name, botCount } = parseParticipantName(msg.name);
+    const validId = typeof msg.userId === "string" && /^[\w-]{8,64}$/.test(msg.userId) && !isBotId(msg.userId);
     const validSecret = typeof msg.secret === "string" && msg.secret.length >= 16 && msg.secret.length <= 128;
     if (!validId || !validSecret || !name) return this.reject(ws, CloseCode.Rejected, "bad_hello");
 
@@ -215,12 +220,17 @@ export class SessionDO extends DurableObject<Env> {
 
     const tx = new Tx(Date.now(), userId, null);
     if (!p) {
+      const isFirst = Object.keys(s.participants).length === 0;
       const canPlay = msg.role === "player" && s.status !== "playing" && this.playerCount() < MAX_PLAYERS;
+      const spawnBots =
+        isFirst && s.status !== "playing" && botCount > 0
+          ? Math.min(botCount, MAX_PLAYERS - (canPlay ? 1 : 0), MAX_PARTICIPANTS - 1)
+          : 0;
       p = {
         userId,
         name,
         role: canPlay ? "player" : "observer",
-        joinedAt: tx.now,
+        joinedAt: spawnBots > 0 ? tx.now - 2 : tx.now,
         connected: true,
         left: false,
         status: "",
@@ -230,6 +240,23 @@ export class SessionDO extends DurableObject<Env> {
       s.participants[userId] = p;
       this.emit(tx, { type: "participant_joined", data: { participant: this.participantView(p) } });
       if (!s.hostId) this.setHost(tx, userId);
+
+      for (let i = 1; i <= spawnBots; i++) {
+        const botId = `${BOT_ID_PREFIX}${i}`;
+        const bot: Participant = {
+          userId: botId,
+          name: `機器人 ${i}`,
+          role: "player",
+          joinedAt: tx.now - 1,
+          connected: true,
+          left: false,
+          status: "",
+          secretHash: "",
+          disconnectedAt: null,
+        };
+        s.participants[botId] = bot;
+        this.emit(tx, { type: "participant_joined", data: { participant: this.participantView(bot) } });
+      }
     } else {
       const changes: ParticipantChanges = {};
       if (!p.connected) changes.connected = true;
@@ -237,6 +264,7 @@ export class SessionDO extends DurableObject<Env> {
       if (p.name !== name) changes.name = name;
       Object.assign(p, changes, { disconnectedAt: null });
       if (Object.keys(changes).length) this.emit(tx, { type: "participant_updated", data: { userId, changes } });
+      if (!s.hostId) this.setHost(tx, userId);
     }
     this.commit(tx, ws);
     this.sendSync(ws, userId, typeof msg.lastSeq === "number" ? msg.lastSeq : null);
@@ -454,15 +482,29 @@ export class SessionDO extends DurableObject<Env> {
     this.emit(tx, { type: "phase_changed", data: { phase: structuredClone(s.phase) } });
   }
 
-  /** Advance while the current phase's requirement is satisfied. */
+  /** Advance while the current phase's requirement is satisfied, letting bots act when pending. */
   private checkRequirement(tx: Tx): void {
     const s = this.state!;
-    for (let guard = 0; guard < 16; guard++) {
+    for (let guard = 0; guard < 1024; guard++) {
       const { phase } = s;
       const req = phase.requirement;
       if (s.status !== "playing" || !s.game || !req) return;
+      const game = this.runningGame();
+      if (!game) return;
+
+      for (const actorId of req.actors) {
+        if (req.done.includes(actorId) || !isBotId(actorId)) continue;
+        const action = game.botAction?.(s.game.state, actorId);
+        if (!action) continue;
+        const error = game.onAction(this.gameContext(tx), s.game.state, actorId, action);
+        if (!error && s.phase.id === phase.id && !req.done.includes(actorId)) {
+          req.done.push(actorId);
+          this.emit(tx, { type: "requirement_done", data: { userId: actorId } });
+        }
+      }
+
       if (!req.actors.every((a) => req.done.includes(a))) return;
-      this.runningGame()?.onPhaseEnd(this.gameContext(tx), s.game.state, phase.name);
+      game.onPhaseEnd(this.gameContext(tx), s.game.state, phase.name);
       if (s.phase.id === phase.id) return;
     }
   }
@@ -502,7 +544,9 @@ export class SessionDO extends DurableObject<Env> {
   }
 
   private transferHost(tx: Tx): void {
-    const candidates = sortParticipants(Object.values(this.state!.participants).filter((p) => !p.left));
+    const candidates = sortParticipants(
+      Object.values(this.state!.participants).filter((p) => !p.left && !isBotId(p.userId)),
+    );
     const next = candidates.find((p) => p.role === "player") ?? candidates[0];
     this.setHost(tx, next?.userId ?? null);
   }

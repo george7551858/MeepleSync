@@ -1,6 +1,7 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, randomInt } from "node:crypto";
 import type { GameContext, GameModule } from "../../worker/game";
 import {
+  HANDS,
   HAND_TEXT,
   commitmentInput,
   judge,
@@ -103,5 +104,11 @@ export const rpsServer: GameModule<RpsState, RpsEvent, RpsMessage> = {
       players: [...s.players],
       scores: {},
     };
+  },
+
+  botAction(s, userId) {
+    if (s.picks[userId]) return null;
+    const hand = HANDS[randomInt(HANDS.length)];
+    return { type: CHOOSE_ACTION, text: HAND_TEXT[hand] };
   },
 };

@@ -119,6 +119,21 @@ export function normalizeName(raw: unknown): string | null {
   return name || null;
 }
 
+/**
+ * Parses a display name that may end with `+N` (e.g. `小明+3`) to request `N` virtual players
+ * when opening a new room. Returns the stripped base name and requested bot count.
+ */
+export function parseParticipantName(raw: unknown): { name: string | null; botCount: number } {
+  if (typeof raw !== "string") return { name: null, botCount: 0 };
+  const cleaned = raw.replace(/\s+/g, " ").trim();
+  if (!cleaned) return { name: null, botCount: 0 };
+  const match = cleaned.match(/^(.*?)\+(\d+)$/);
+  if (!match) return { name: cleaned.slice(0, NAME_MAX_LENGTH), botCount: 0 };
+  const base = match[1].trim().slice(0, NAME_MAX_LENGTH);
+  const botCount = Number.parseInt(match[2], 10);
+  return { name: base || "玩家", botCount };
+}
+
 export const TEXT_MAX_LENGTH = 200;
 export const STATUS_MAX_LENGTH = 40;
 export const MESSAGE_HISTORY = 50;
