@@ -149,8 +149,8 @@ describe("old maid", () => {
     for (const c of all) expect(c.view).toEqual(await c.syncFresh());
   });
 
-  it("plays to the end, and the last player holds the joker", async () => {
-    const { players, watchers, all } = await startGame(["Alice", "Bob"], ["Carol"]);
+  it("plays to the end with multiple players, and the last player holds the joker", async () => {
+    const { players, watchers, all } = await startGame(["Alice", "Bob", "Dave", "Eve"], ["Carol"]);
     for (let guard = 0; guard < 500; guard++) {
       await settle(all);
       const view = players[0].view!;
@@ -166,7 +166,8 @@ describe("old maid", () => {
     expect(loser).toBeTruthy();
     expect(Object.entries(final.counts).filter(([, n]) => n > 0)).toEqual([[loser, 1]]);
     expect(game(byId(players, loser)).myHand).toEqual([JOKER]);
-    expect(final.out).toHaveLength(1);
+    expect(final.out).toHaveLength(players.length - 1);
+    expect(final.out).not.toContain(loser);
     const result = messagesOfType(watchers[0], "result").at(-1)!;
     expect(result.data.loser).toBe(loser);
     for (const c of all) expect(c.view).toEqual(await c.syncFresh());

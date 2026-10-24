@@ -58,7 +58,7 @@ export interface OldMaidView {
 
 /** `hand` is never public: it only reaches its owner through the event's secret. */
 export type OldMaidEvent =
-  | { game: "oldmaid"; event: "dealt"; counts: Record<string, number>; hand?: Card[] }
+  | { game: "oldmaid"; event: "dealt"; counts: Record<string, number>; out: string[]; hand?: Card[] }
   | { game: "oldmaid"; event: "turn"; turn: number; drawer: string; target: string }
   | { game: "oldmaid"; event: "drew"; counts: Record<string, number>; out: string[]; hand?: Card[] }
   | { game: "oldmaid"; event: "ended"; loser: string | null };
@@ -98,6 +98,7 @@ export const oldMaid: SharedGame<OldMaidView, OldMaidEvent> = {
     switch (event.event) {
       case "dealt":
         game.counts = event.counts;
+        game.out = event.out;
         if (event.hand) game.myHand = event.hand;
         break;
       case "turn":

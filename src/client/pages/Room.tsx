@@ -7,6 +7,7 @@ import { ConnectionBanner } from "../components/ConnectionBanner";
 import { Meeple } from "../components/Meeple";
 import { ParticipantList } from "../components/ParticipantList";
 import { TextPanel } from "../components/TextPanel";
+import { participantName } from "../game";
 import { loadIdentity, randomName, saveName, type Identity } from "../identity";
 import { errorLabel, phaseLabel } from "../labels";
 import { useServerNow, useSession } from "../useSession";
@@ -79,10 +80,19 @@ function ParticipantDrawer({
   const players = view.participants.filter((p) => p.role === "player" && !p.left);
   const observers = view.participants.filter((p) => p.role === "observer");
   const total = players.length + observers.length;
-  const roleLabel = me ? (me.role === "player" ? "玩家" : "觀察者") : "";
 
   const { phase } = view;
   const remaining = phase.deadline === null ? null : Math.max(0, Math.ceil((phase.deadline - now) / 1000));
+  const waiting =
+    view.status === "playing" && phase.requirement
+      ? phase.requirement.actors.filter((a) => !phase.requirement!.done.includes(a))
+      : [];
+  const turnLabel =
+    waiting.length === 0
+      ? null
+      : waiting.length === 1 && waiting[0] === meId
+        ? "輪到你"
+        : `輪到 ${waiting.map((id) => (id === meId ? "你" : participantName(view, id))).join("、")}`;
 
   return (
     <div className="drawer">
@@ -90,10 +100,12 @@ function ParticipantDrawer({
         <span>
           <Meeple name={me?.name ?? "?"} size={20} />
           {" "}
-          {roleLabel}
+          {me?.name ?? ""}
+          {me?.role === "observer" && <span className="muted">（觀察者）</span>}
           <span className="muted"> · {total} 人在線</span>
           {remaining !== null && <span className="muted"> · 剩餘 {remaining}s</span>}
           <span className="muted"> · {phaseLabel(view)}</span>
+          {turnLabel && <span> · <strong>{turnLabel}</strong></span>}
         </span>
         <span className="drawer-arrow">{open ? "▲" : "▼"}</span>
       </button>
@@ -173,12 +185,12 @@ function RoomInner({ sessionId, role, navigate, identity }: Props & { identity: 
 
   const handleStart = async () => {
     // If finished, restart first to return to lobby, then start
-    if (view?.status === "finished") await run({ type: "restart" });
+    if (view?.status === "finished" && !(await run({ type: "restart" }))) return;
     void run({ type: "start" });
   };
 
   const handleModeChange = async (m: GameMode) => {
-    if (view?.status === "finished") await run({ type: "restart" });
+    if (view?.status === "finished" && !(await run({ type: "restart" }))) return;
     void run({ type: "set_mode", mode: m });
   };
 
@@ -203,7 +215,7 @@ function RoomInner({ sessionId, role, navigate, identity }: Props & { identity: 
             view={view}
             meId={identity.userId}
             now={now}
-            canChangeRole={view.status === "lobby" && connected}
+            canChangeRole={inLobbyOrFinished && connected}
             onRoleChange={(role) => { void run({ type: "set_role", role }); }}
             onStatusChange={(status) => { void run({ type: "set_status", status }); }}
           />

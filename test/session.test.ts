@@ -212,6 +212,44 @@ describe("rock paper scissors", () => {
     await bob.waitFor(() => bob.view!.status === "lobby");
     expect(bob.view!.game).toBeNull();
   });
+
+  it("supports multiplayer (3+ players) with multiple winners and allows new players to join after a finished game", async () => {
+    const { sessionId, alice, bob } = await lobbyWithTwo();
+    await alice.act({ type: "start" });
+    await alice.waitFor(() => alice.view!.phase.name === "choosing");
+    await choose(alice, "rock");
+    await choose(bob, "rock");
+    await expireAndRunAlarm(sessionId, (s) => (s.phase.deadline = Date.now() - 1));
+    await alice.waitFor(() => alice.view!.status === "finished");
+
+    // While status === "finished", Carol joins as a player and Dave joins as observer then switches to player.
+    const carol = await TestClient.connect(sessionId, makeIdentity("Carol"), "player");
+    await carol.ready();
+    expect(carol.view!.participants.find((p) => p.userId === carol.identity.userId)!.role).toBe("player");
+
+    const dave = await TestClient.connect(sessionId, makeIdentity("Dave"), "observer");
+    await dave.ready();
+    expect(await dave.act({ type: "set_role", role: "player" })).toMatchObject({ ok: true });
+    await alice.waitFor(() => alice.view!.participants.filter((p) => p.role === "player").length === 4);
+
+    // Restart and start a 4-player RPS game.
+    expect(await alice.act({ type: "restart" })).toMatchObject({ ok: true });
+    expect(await alice.act({ type: "start" })).toMatchObject({ ok: true });
+    for (const c of [alice, bob, carol, dave]) await c.waitFor(() => c.view!.phase.name === "choosing");
+
+    await choose(alice, "rock");
+    await choose(bob, "scissors");
+    await choose(carol, "rock");
+    await choose(dave, "scissors");
+
+    for (const c of [alice, bob, carol, dave]) await c.waitFor(() => c.view!.phase.name === "revealed");
+    const message = latestResult(carol)!;
+    expect(message.result.draw).toBe(false);
+    expect(message.result.winners).toEqual([alice.identity.userId, carol.identity.userId]);
+    for (const c of [alice, bob, carol, dave]) {
+      expect(c.view).toEqual(await c.syncFresh());
+    }
+  });
 });
 
 describe("disconnect and recovery", () => {

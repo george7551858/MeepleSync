@@ -215,7 +215,7 @@ export class SessionDO extends DurableObject<Env> {
 
     const tx = new Tx(Date.now(), userId, null);
     if (!p) {
-      const canPlay = msg.role === "player" && s.status === "lobby" && this.playerCount() < MAX_PLAYERS;
+      const canPlay = msg.role === "player" && s.status !== "playing" && this.playerCount() < MAX_PLAYERS;
       p = {
         userId,
         name,
@@ -284,7 +284,7 @@ export class SessionDO extends DurableObject<Env> {
 
     switch (action.type) {
       case "set_role": {
-        if (s.status !== "lobby") return fail("not_allowed_now");
+        if (s.status === "playing") return fail("not_allowed_now");
         if (action.role !== "player" && action.role !== "observer") return fail("invalid_role");
         if (action.role === p.role) return { ok: true };
         if (action.role === "player" && this.playerCount() >= MAX_PLAYERS) return fail("too_many_players");
@@ -479,7 +479,7 @@ export class SessionDO extends DurableObject<Env> {
     const s = this.state!;
     const p = s.participants[userId];
     if (!p) return;
-    if (s.status === "lobby" || p.role === "observer") {
+    if (s.status !== "playing" || p.role === "observer") {
       this.removeParticipant(tx, userId, reason);
     } else {
       p.left = true;

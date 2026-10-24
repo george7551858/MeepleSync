@@ -170,7 +170,7 @@ export const oldMaidServer: GameModule<OldMaidState, OldMaidEvent, OldMaidMessag
     s.out = s.players.filter((p) => s.hands[p].length === 0);
 
     ctx.emit(
-      { game: "oldmaid", event: "dealt", counts: counts(s) },
+      { game: "oldmaid", event: "dealt", counts: counts(s), out: [...s.out] },
       s.players.map((p) => ({ to: [p], data: { hand: [...s.hands[p]] } })),
     );
     ctx.post({ type: "dealt", names: namesOf(ctx, s.players), pairs, counts: counts(s) });
